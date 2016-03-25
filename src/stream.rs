@@ -1,5 +1,8 @@
 //! In-memory compression/decompression streams
 
+use std::error;
+use std::fmt;
+use std::io;
 use std::mem;
 use std::slice;
 
@@ -449,6 +452,24 @@ impl Drop for CompressParams {
         unsafe {
             brotli_sys::RustBrotliParamsDestroy(self.params);
         }
+    }
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        error::Error::description(self).fmt(f)
+    }
+}
+
+impl error::Error for Error {
+    fn description(&self) -> &str {
+        "brotli error"
+    }
+}
+
+impl From<Error> for io::Error {
+    fn from(_err: Error) -> io::Error {
+        io::Error::new(io::ErrorKind::Other, "brotli error")
     }
 }
 

@@ -11,3 +11,6 @@ extern crate brotli_sys;
 extern crate libc;
 
 pub mod stream;
+pub mod bufread;
+pub mod read;
+pub mod write;
