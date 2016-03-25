@@ -231,4 +231,12 @@ extern {
                                     input_buffer: *const u8,
                                     encoded_size: *mut size_t,
                                     encoded_buffer: *mut u8) -> c_int;
+    pub fn RustBrotliCompressBufferVec(params: *mut RustBrotliParams,
+                                       input_size: size_t,
+                                       input_buffer: *const u8,
+                                       data: *mut c_void,
+                                       callback: extern fn(*mut c_void,
+                                                           *const c_void,
+                                                           size_t) -> c_int)
+                                       -> c_int;
 }

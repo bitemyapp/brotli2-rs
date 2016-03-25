@@ -76,3 +76,31 @@ RustBrotliCompressBuffer(RustBrotliParams *params,
   return brotli::BrotliCompressBuffer(*Params, input_size, input_buffer,
                                       encoded_size, encoded_buffer);
 }
+
+class MyBrotliOut : public brotli::BrotliOut {
+ public:
+  MyBrotliOut(void *data, int (*callback)(void*, const void*, size_t))
+    : data(data), callback(callback)
+  {}
+
+  bool Write(const void* buf, size_t n) {
+    return callback(data, buf, n);
+  }
+
+ private:
+  void *data;
+  int (*callback)(void*, const void*, size_t);
+};
+
+extern "C" int
+RustBrotliCompressBufferVec(RustBrotliParams *params,
+                            size_t input_size,
+                            const uint8_t* input_buffer,
+                            void *data,
+                            int(*callback)(void*, const void*, size_t)) {
+  brotli::BrotliMemIn Input(input_buffer, input_size);
+  MyBrotliOut Output(data, callback);
+  brotli::BrotliParams *Params = reinterpret_cast<brotli::BrotliParams*>(params);
+
+  return brotli::BrotliCompress(*Params, &Input, &Output);
+}
