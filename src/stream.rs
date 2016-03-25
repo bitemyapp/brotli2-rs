@@ -22,8 +22,11 @@ unsafe impl Sync for Decompress {}
 /// This stream is at the heart of the I/O encoders and is used to compress
 /// data.
 pub struct Compress {
-    _state: (),
+    state: *mut brotli_sys::RustBrotliCompressor,
 }
+
+unsafe impl Send for Compress {}
+unsafe impl Sync for Compress {}
 
 /// Parameters passed to various compression routines.
 pub struct CompressParams {
@@ -184,6 +187,147 @@ pub fn decompress_buf(input: &[u8],
     };
     *output = &mut mem::replace(output, &mut [])[..size];
     Decompress::rc(r)
+}
+
+impl Compress {
+    /// Creates a new compressor ready to encode data into brotli
+    pub fn new(params: &CompressParams) -> Compress {
+        unsafe {
+            let state = brotli_sys::RustBrotliCompressorCreate(params.params);
+            assert!(!state.is_null());
+            Compress { state: state }
+        }
+    }
+
+    /// Returns the maximum amount of data that can be internally buffered to
+    /// get processed at once.
+    ///
+    /// Data is fed into this compressor via the `copy_input` function, and then
+    /// it's later compressed via the `write_brotli_data` function.
+    pub fn input_block_size(&self) -> usize {
+        unsafe { brotli_sys::RustBrotliCompressorInputBlockSize(self.state) }
+    }
+
+    // Apparently this is just a shim around CopyInputToRingBuffer,
+    // WriteBrotliData, and then finally a memcpy?
+    //
+    // #[allow(dead_code)]
+    // fn write_metablock(&mut self,
+    //                    input: &[u8],
+    //                    last: bool,
+    //                    encoded: &mut [u8]) -> Result<usize, Error> {
+    //     let mut size = encoded.len();
+    //     let r = unsafe {
+    //         brotli_sys::RustBrotliCompressorWriteMetaBlock(self.state,
+    //                                                        input.len(),
+    //                                                        input.as_ptr(),
+    //                                                        last as c_int,
+    //                                                        &mut size,
+    //                                                        encoded.as_mut_ptr())
+    //     };
+    //     if r == 0 {
+    //         Err(Error(()))
+    //     } else {
+    //         Ok(size)
+    //     }
+    // }
+
+    // Maybe someone will eventually come up with a use for this?
+    //
+    // #[allow(dead_code)]
+    // fn write_metadata(&mut self,
+    //                   input: &[u8],
+    //                   last: bool,
+    //                   encoded: &mut [u8]) -> Result<usize, Error> {
+    //     let mut size = encoded.len();
+    //     let r = unsafe {
+    //         brotli_sys::RustBrotliCompressorWriteMetadata(self.state,
+    //                                                       input.len(),
+    //                                                       input.as_ptr(),
+    //                                                       last as c_int,
+    //                                                       &mut size,
+    //                                                       encoded.as_mut_ptr())
+    //     };
+    //     if r == 0 {
+    //         Err(Error(()))
+    //     } else {
+    //         Ok(size)
+    //     }
+    // }
+
+    // This is just a shim around WriteMetaBlock, which is in turn just a shim
+    // around WriteBrotliData, so let's just delegate there I guess?
+    //
+    // #[allow(dead_code)]
+    // fn finish_stream(&mut self, output: &mut [u8]) -> Result<usize, Error> {
+    //     let mut size = output.len();
+    //     let r = unsafe {
+    //         brotli_sys::RustBrotliCompressorFinishStream(self.state,
+    //                                                      &mut size,
+    //                                                      output.as_mut_ptr())
+    //     };
+    //     if r == 0 {
+    //         Err(Error(()))
+    //     } else {
+    //         Ok(size)
+    //     }
+    // }
+
+    /// Feeds data into this compressor.
+    ///
+    /// This compressor can store up to `self.input_block_size()` bytes
+    /// internally after which the `compress` call must be made to generate all
+    /// output of the compressor.
+    ///
+    /// If too much data is copied in then the next call to `compress` will
+    /// generate an error.
+    pub fn copy_input(&mut self, input: &[u8]) {
+        unsafe {
+            brotli_sys::RustBrotliCompressorCopyInputToRingBuffer(self.state,
+                                                                  input.len(),
+                                                                  input.as_ptr())
+        }
+    }
+
+    /// Compresses the internal data in this compressor, returning the output
+    /// buffer of the compressed data.
+    ///
+    /// After data has been fed to this compressor via the `copy_input` method,
+    /// the data is then compressed by calling this method. The `last` flag
+    /// indicates whether this is the last block of the input (it should only
+    /// get passed on EOF), and the `force_flush` flag indicates whether a new
+    /// meta-block should be created to flush the internal data.
+    ///
+    /// Returns an error, if any, and otherwise the internal buffer which
+    /// contains the output data of compressed information.
+    pub fn compress(&mut self, last: bool, force_flush: bool)
+                    -> Result<&[u8], Error> {
+        let mut size = 0;
+        let mut ptr = 0 as *mut _;
+        unsafe {
+            let (last, flush) = (last as c_int, force_flush as c_int);
+            let r = brotli_sys::RustBrotliCompressorWriteBrotliData(self.state,
+                                                                    last,
+                                                                    flush,
+                                                                    &mut size,
+                                                                    &mut ptr);
+            if r == 0 {
+                Err(Error(()))
+            } else if size == 0 {
+                Ok(slice::from_raw_parts_mut(1 as *mut _, size))
+            } else {
+                Ok(slice::from_raw_parts_mut(ptr, size))
+            }
+        }
+    }
+}
+
+impl Drop for Compress {
+    fn drop(&mut self) {
+        unsafe {
+            brotli_sys::RustBrotliCompressorDestroy(self.state);
+        }
+    }
 }
 
 /// Compresses the data in `input` into `output`.
@@ -370,5 +514,28 @@ mod tests {
         assert_eq!(d.decompress_vec(&mut &data[..], &mut dst),
                    Ok(Status::Finished));
         assert_eq!(&dst, b"hello!");
+    }
+
+    #[test]
+    fn compress_smoke() {
+        let mut data = Vec::new();
+        let mut c = Compress::new(&CompressParams::new());
+        c.copy_input(b"hello!");
+        data.extend_from_slice(c.compress(true, false).unwrap());
+
+        let mut dst = [0; 128];
+        decompress_buf(&data, &mut &mut dst[..]).unwrap();
+        assert_eq!(&dst[..6], b"hello!");
+
+        data.truncate(0);
+        let mut c = Compress::new(&CompressParams::new());
+        c.copy_input(b"hel");
+        data.extend_from_slice(c.compress(false, true).unwrap());
+        c.copy_input(b"lo!");
+        data.extend_from_slice(c.compress(true, false).unwrap());
+
+        let mut dst = [0; 128];
+        decompress_buf(&data, &mut &mut dst[..]).unwrap();
+        assert_eq!(&dst[..6], b"hello!");
     }
 }

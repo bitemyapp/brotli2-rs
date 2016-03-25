@@ -145,7 +145,7 @@ pub const BROTLI_RESULT_SUCCESS: BrotliResult = 1;
 pub const BROTLI_RESULT_NEEDS_MORE_INPUT: BrotliResult = 2;
 pub const BROTLI_RESULT_NEEDS_MORE_OUTPUT: BrotliResult = 3;
 
-pub enum RustBrotliCompress {}
+pub enum RustBrotliCompressor {}
 pub enum RustBrotliParams {}
 pub type RustBrotliMode = __enum_ty;
 
@@ -207,7 +207,7 @@ extern {
                                          symbols: *mut u16,
                                          num_symbols: u32) -> u32;
 
-    // compress
+    // compress params
     pub fn RustBrotliParamsCreate() -> *mut RustBrotliParams;
     pub fn RustBrotliParamsDestroy(params: *mut RustBrotliParams);
     pub fn RustBrotliParamsSetMode(params: *mut RustBrotliParams,
@@ -226,12 +226,14 @@ extern {
                                                split: c_int);
     pub fn RustBrotliParamsSetEnableContextModeling(params: *mut RustBrotliParams,
                                                     enable: c_int);
-    pub fn RustBrotliCompressBuffer(params: *mut RustBrotliParams,
+
+    // compress in memory
+    pub fn RustBrotliCompressBuffer(params: *const RustBrotliParams,
                                     input_size: size_t,
                                     input_buffer: *const u8,
                                     encoded_size: *mut size_t,
                                     encoded_buffer: *mut u8) -> c_int;
-    pub fn RustBrotliCompressBufferVec(params: *mut RustBrotliParams,
+    pub fn RustBrotliCompressBufferVec(params: *const RustBrotliParams,
                                        input_size: size_t,
                                        input_buffer: *const u8,
                                        data: *mut c_void,
@@ -239,4 +241,36 @@ extern {
                                                            *const c_void,
                                                            size_t) -> c_int)
                                        -> c_int;
+
+    // compressor stream
+    pub fn RustBrotliCompressorCreate(params: *const RustBrotliParams)
+                                      -> *mut RustBrotliCompressor;
+    pub fn RustBrotliCompressorDestroy(c: *mut RustBrotliCompressor);
+    pub fn RustBrotliCompressorInputBlockSize(c: *const RustBrotliCompressor)
+                                              -> size_t;
+    pub fn RustBrotliCompressorWriteMetaBlock(c: *mut RustBrotliCompressor,
+                                              input_size: size_t,
+                                              input_buffer: *const u8,
+                                              is_last: c_int,
+                                              encoded_size: *mut size_t,
+                                              encoded_buffer: *mut u8)
+                                              -> c_int;
+    pub fn RustBrotliCompressorWriteMetadata(c: *mut RustBrotliCompressor,
+                                             input_size: size_t,
+                                             input_buffer: *const u8,
+                                             is_last: c_int,
+                                             encoded_size: *mut size_t,
+                                             encoded_buffer: *mut u8)
+                                             -> c_int;
+    pub fn RustBrotliCompressorFinishStream(c: *mut RustBrotliCompressor,
+                                            encoded_size: *mut size_t,
+                                            encoded_buffer: *mut u8) -> c_int;
+    pub fn RustBrotliCompressorCopyInputToRingBuffer(c: *mut RustBrotliCompressor,
+                                                     input_size: size_t,
+                                                     input_buffer: *const u8);
+    pub fn RustBrotliCompressorWriteBrotliData(c: *mut RustBrotliCompressor,
+                                               is_last: c_int,
+                                               force_flush: c_int,
+                                               out_size: *mut size_t,
+                                               output: *mut *mut u8) -> c_int;
 }

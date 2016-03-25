@@ -2,82 +2,84 @@
 
 #include "brotli_capi.h"
 
+using namespace brotli;
+
 extern "C" RustBrotliParams*
 RustBrotliParamsCreate() {
-  return reinterpret_cast<RustBrotliParams*>(new brotli::BrotliParams());
+  return reinterpret_cast<RustBrotliParams*>(new BrotliParams());
 }
 
 extern "C" void
 RustBrotliParamsDestroy(RustBrotliParams *params) {
-  delete reinterpret_cast<brotli::BrotliParams*>(params);
+  delete reinterpret_cast<BrotliParams*>(params);
 }
 
 extern "C" void
 RustBrotliParamsSetMode(RustBrotliParams *params,
                         RustBrotliMode mode) {
-  brotli::BrotliParams::Mode BrotliMode;
+  BrotliParams::Mode BrotliMode;
   switch (mode) {
     case RUST_MODE_TEXT:
-      BrotliMode = brotli::BrotliParams::MODE_TEXT;
+      BrotliMode = BrotliParams::MODE_TEXT;
       break;
     case RUST_MODE_FONT:
-      BrotliMode = brotli::BrotliParams::MODE_FONT;
+      BrotliMode = BrotliParams::MODE_FONT;
       break;
     case RUST_MODE_GENERIC:
     default:
-      BrotliMode = brotli::BrotliParams::MODE_GENERIC;
+      BrotliMode = BrotliParams::MODE_GENERIC;
       break;
   }
-  reinterpret_cast<brotli::BrotliParams*>(params)->mode = BrotliMode;
+  reinterpret_cast<BrotliParams*>(params)->mode = BrotliMode;
 }
 
 extern "C" void
 RustBrotliParamsSetQuality(RustBrotliParams *params, int quality) {
-  reinterpret_cast<brotli::BrotliParams*>(params)->quality = quality;
+  reinterpret_cast<BrotliParams*>(params)->quality = quality;
 }
 
 extern "C" void
 RustBrotliParamsSetLgwin(RustBrotliParams *params, int lgwin) {
-  reinterpret_cast<brotli::BrotliParams*>(params)->lgwin = lgwin;
+  reinterpret_cast<BrotliParams*>(params)->lgwin = lgwin;
 }
 
 extern "C" void
 RustBrotliParamsSetLgblock(RustBrotliParams *params, int lgblock) {
-  reinterpret_cast<brotli::BrotliParams*>(params)->lgblock = lgblock;
+  reinterpret_cast<BrotliParams*>(params)->lgblock = lgblock;
 }
 
 extern "C" void
 RustBrotliParamsSetEnableDictionary(RustBrotliParams *params, int enable) {
-  reinterpret_cast<brotli::BrotliParams*>(params)->enable_dictionary = enable;
+  reinterpret_cast<BrotliParams*>(params)->enable_dictionary = enable;
 }
 
 extern "C" void
 RustBrotliParamsSetEnableTransforms(RustBrotliParams *params, int enable) {
-  reinterpret_cast<brotli::BrotliParams*>(params)->enable_transforms = enable;
+  reinterpret_cast<BrotliParams*>(params)->enable_transforms = enable;
 }
 
 extern "C" void
 RustBrotliParamsSetGreedyBlockSplit(RustBrotliParams *params, int split) {
-  reinterpret_cast<brotli::BrotliParams*>(params)->greedy_block_split = split;
+  reinterpret_cast<BrotliParams*>(params)->greedy_block_split = split;
 }
 
 extern "C" void
 RustBrotliParamsSetEnableContextModeling(RustBrotliParams *params, int enable) {
-  reinterpret_cast<brotli::BrotliParams*>(params)->enable_context_modeling = enable;
+  reinterpret_cast<BrotliParams*>(params)->enable_context_modeling = enable;
 }
 
 extern "C" int
-RustBrotliCompressBuffer(RustBrotliParams *params,
+RustBrotliCompressBuffer(const RustBrotliParams *params,
                          size_t input_size,
                          const uint8_t* input_buffer,
                          size_t* encoded_size,
                          uint8_t* encoded_buffer) {
-  brotli::BrotliParams *Params = reinterpret_cast<brotli::BrotliParams*>(params);
-  return brotli::BrotliCompressBuffer(*Params, input_size, input_buffer,
+  const BrotliParams *Params = reinterpret_cast<const BrotliParams*>(params);
+  return BrotliCompressBuffer(*Params, input_size, input_buffer,
                                       encoded_size, encoded_buffer);
 }
 
-class MyBrotliOut : public brotli::BrotliOut {
+class MyBrotliOut : public BrotliOut {
  public:
   MyBrotliOut(void *data, int (*callback)(void*, const void*, size_t))
     : data(data), callback(callback)
@@ -93,14 +95,82 @@ class MyBrotliOut : public brotli::BrotliOut {
 };
 
 extern "C" int
-RustBrotliCompressBufferVec(RustBrotliParams *params,
+RustBrotliCompressBufferVec(const RustBrotliParams *params,
                             size_t input_size,
                             const uint8_t* input_buffer,
                             void *data,
                             int(*callback)(void*, const void*, size_t)) {
-  brotli::BrotliMemIn Input(input_buffer, input_size);
+  BrotliMemIn Input(input_buffer, input_size);
   MyBrotliOut Output(data, callback);
-  brotli::BrotliParams *Params = reinterpret_cast<brotli::BrotliParams*>(params);
+  const BrotliParams *Params = reinterpret_cast<const BrotliParams*>(params);
 
-  return brotli::BrotliCompress(*Params, &Input, &Output);
+  return BrotliCompress(*Params, &Input, &Output);
+}
+
+extern "C" RustBrotliCompressor*
+RustBrotliCompressorCreate(const RustBrotliParams *params) {
+  const BrotliParams *Params = reinterpret_cast<const BrotliParams*>(params);
+  BrotliCompressor *Compressor = new BrotliCompressor(*Params);
+  return reinterpret_cast<RustBrotliCompressor*>(Compressor);
+}
+
+extern "C" void
+RustBrotliCompressorDestroy(RustBrotliCompressor* c) {
+  delete reinterpret_cast<BrotliCompressor*>(c);
+}
+
+extern "C" size_t
+RustBrotliCompressorInputBlockSize(const RustBrotliCompressor* c) {
+  const BrotliCompressor *C = reinterpret_cast<const BrotliCompressor*>(c);
+  return C->input_block_size();
+}
+
+extern "C" int
+RustBrotliCompressorWriteMetaBlock(RustBrotliCompressor* c,
+                                   size_t input_size,
+                                   const uint8_t* input_buffer,
+                                   int is_last,
+                                   size_t *encoded_size,
+                                   uint8_t *encoded_buffer) {
+  BrotliCompressor *C = reinterpret_cast<BrotliCompressor*>(c);
+  return C->WriteMetaBlock(input_size, input_buffer, is_last,
+                           encoded_size, encoded_buffer);
+}
+
+extern "C" int
+RustBrotliCompressorWriteMetadata(RustBrotliCompressor* c,
+                                  size_t input_size,
+                                  const uint8_t* input_buffer,
+                                  int is_last,
+                                  size_t *encoded_size,
+                                  uint8_t *encoded_buffer) {
+  BrotliCompressor *C = reinterpret_cast<BrotliCompressor*>(c);
+  return C->WriteMetadata(input_size, input_buffer, is_last,
+                          encoded_size, encoded_buffer);
+}
+
+extern "C" int
+RustBrotliCompressorFinishStream(RustBrotliCompressor* c,
+                                 size_t *encoded_size,
+                                 uint8_t *encoded_buffer) {
+  BrotliCompressor *C = reinterpret_cast<BrotliCompressor*>(c);
+  return C->FinishStream(encoded_size, encoded_buffer);
+}
+
+extern "C" void
+RustBrotliCompressorCopyInputToRingBuffer(RustBrotliCompressor* c,
+                                          size_t input_size,
+                                          const uint8_t *input_buffer) {
+  BrotliCompressor *C = reinterpret_cast<BrotliCompressor*>(c);
+  C->CopyInputToRingBuffer(input_size, input_buffer);
+}
+
+extern "C" int
+RustBrotliCompressorWriteBrotliData(RustBrotliCompressor* c,
+                                    int is_last,
+                                    int force_flush,
+                                    size_t *out_size,
+                                    uint8_t **output) {
+  BrotliCompressor *C = reinterpret_cast<BrotliCompressor*>(c);
+  return C->WriteBrotliData(is_last, force_flush, out_size, output);
 }
