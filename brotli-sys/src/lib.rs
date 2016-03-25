@@ -113,9 +113,14 @@ pub struct BrotliStateStruct {
     pub context_modes: *mut u8,
 }
 
+#[cfg(target_pointer_width = "32")]
+pub type reg_t = u32;
+#[cfg(target_pointer_width = "64")]
+pub type reg_t = u64;
+
 #[repr(C)]
 pub struct BrotliBitReader {
-    pub val_: usize,
+    pub val_: reg_t,
     pub bit_pos_: u32,
     pub next_in: *const u8,
     pub avail_in: size_t,
