@@ -7,6 +7,10 @@ fn main() {
     let myout = env::var("DEP_BROTLI_MYINCLUDE").unwrap();
     let mut cfg = ctest::TestGenerator::new();
 
+    if env::var("TARGET").unwrap().contains("msvc") {
+        cfg.flag("/wd2220"); // allow "no object file was generated"
+        cfg.flag("/wd4127"); // allow "conditional expression is constant"
+    }
     cfg.header("decode.h")
        .header("brotli_capi.h");
     cfg.include(&out).include(&myout);
