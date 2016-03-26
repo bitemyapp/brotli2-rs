@@ -12,6 +12,14 @@ description = """
 Raw bindings to libbrotli
 """
 
+include = [
+  "src/*",
+  "brotli/enc/*",
+  "brotli/dec/*",
+  "Cargo.toml",
+  "build.rs"
+]
+
 [dependencies]
 libc = "0.2"
 
