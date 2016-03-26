@@ -9,7 +9,7 @@
 //!
 //! ```
 //! use std::io::prelude::*;
-//! use brotli::read::{BrotliEncoder, BrotliDecoder};
+//! use brotli2::read::{BrotliEncoder, BrotliDecoder};
 //!
 //! // Round trip some bytes from a byte source, into a compressor, into a
 //! // decompressor, and finally into a vector.
@@ -23,7 +23,7 @@
 //! ```
 
 #![deny(missing_docs)]
-#![doc(html_root_url = "http://alexcrichton.com/brotli-rs")]
+#![doc(html_root_url = "http://alexcrichton.com/brotli2-rs")]
 
 extern crate brotli_sys;
 extern crate libc;
