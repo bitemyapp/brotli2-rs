@@ -5,7 +5,7 @@ use std::process::Command;
 use std::path::Path;
 
 fn main() {
-    if !Path::new("brotli").exists() {
+    if !Path::new("brotli/.git").exists() {
         let _ = Command::new("git").args(&["submodule", "update", "--init"])
                                    .status();
     }
