@@ -1,8 +1,15 @@
 extern crate gcc;
 
 use std::env;
+use std::process::Command;
+use std::path::Path;
 
 fn main() {
+    if !Path::new("brotli").exists() {
+        let _ = Command::new("git").args(&["submodule", "update", "--init"])
+                                   .status();
+    }
+
     let src = env::current_dir().unwrap();
     println!("cargo:include={}", src.join("brotli/dec").display());
     println!("cargo:myinclude={}", src.join("src").display());
