@@ -3,7 +3,7 @@
 [![Build Status](https://travis-ci.org/alexcrichton/brotli-rs.svg?branch=master)](https://travis-ci.org/alexcrichton/brotli-rs)
 [![Build status](https://ci.appveyor.com/api/projects/status/j58d3x8p0a8mig0m?svg=true)](https://ci.appveyor.com/project/alexcrichton/brotli-rs)
 
-[Documentation](http://alexcrichton.com/brotli-rs)
+[Documentation](http://alexcrichton.com/brotli2-rs)
 
 Bindings to the official [brotli] implementation in Rust.
 
