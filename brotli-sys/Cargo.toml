@@ -5,9 +5,9 @@ authors = ["Alex Crichton <alex@alexcrichton.com>"]
 build = "build.rs"
 links = "brotli"
 license = "MIT/Apache-2.0"
-repository = "https://github.com/alexcrichton/brotli-rs"
-homepage = "https://github.com/alexcrichton/brotli-rs"
-documentation = "http://alexcrichton.com/brotli-rs"
+repository = "https://github.com/alexcrichton/brotli2-rs"
+homepage = "https://github.com/alexcrichton/brotli2-rs"
+documentation = "http://alexcrichton.com/brotli2-rs"
 description = """
 Raw bindings to libbrotli
 """
