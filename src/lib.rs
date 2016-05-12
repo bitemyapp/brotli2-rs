@@ -30,6 +30,8 @@ extern crate libc;
 
 #[cfg(test)]
 extern crate rand;
+#[cfg(test)]
+extern crate quickcheck;
 
 pub mod stream;
 pub mod bufread;
