@@ -16,13 +16,15 @@ fn main() {
 
     gcc::Config::new()
         .include("brotli/dec")
-        .file("brotli/dec/decode.c")
         .file("brotli/dec/bit_reader.c")
         .file("brotli/dec/decode.c")
         .file("brotli/dec/dictionary.c")
         .file("brotli/dec/huffman.c")
         .file("brotli/dec/state.c")
         .compile("libbrotli-dec.a");
+
+    // Omit "brotli/enc/dictionary.cc" from the source list in order to avoid
+    // multiple definition linker errors with "brotli/dec/dictionary.c".
     gcc::Config::new()
         .cpp(true)
         .include("brotli/enc")
@@ -33,7 +35,6 @@ fn main() {
         .file("brotli/enc/brotli_bit_stream.cc")
         .file("brotli/enc/compress_fragment.cc")
         .file("brotli/enc/compress_fragment_two_pass.cc")
-        .file("brotli/enc/dictionary.cc")
         .file("brotli/enc/encode.cc")
         .file("brotli/enc/encode_parallel.cc")
         .file("brotli/enc/entropy_encode.cc")
