@@ -1,13 +1,15 @@
 //! In-memory compression/decompression streams
 
+use std::cmp;
 use std::error;
 use std::fmt;
 use std::io;
 use std::mem;
+use std::ptr;
 use std::slice;
 
 use brotli_sys;
-use libc::{c_int, c_void, size_t};
+use libc::c_int;
 
 /// In-memory state for decompressing brotli-encoded data.
 ///
@@ -25,7 +27,7 @@ unsafe impl Sync for Decompress {}
 /// This stream is at the heart of the I/O encoders and is used to compress
 /// data.
 pub struct Compress {
-    state: *mut brotli_sys::RustBrotliCompressor,
+    state: *mut brotli_sys::BrotliEncoderState,
 }
 
 unsafe impl Send for Compress {}
@@ -33,21 +35,27 @@ unsafe impl Sync for Compress {}
 
 /// Parameters passed to various compression routines.
 pub struct CompressParams {
-    params: *mut brotli_sys::RustBrotliParams,
+    /// Compression mode.
+    pub mode: CompressMode,
+    /// Controls the compression-speed vs compression-density tradeoffs. The higher the `quality`,
+    /// the slower the compression. Range is 0 to 11.
+    pub quality: u32,
+    /// Base 2 logarithm of the sliding window size. Range is 10 to 24.
+    pub lgwin: u32,
+    /// Base 2 logarithm of the maximum input block size. Range is 16 to 24. If set to 0, the value
+    /// will be set based on the quality.
+    pub lgblock: u32,
 }
-
-unsafe impl Send for CompressParams {}
-unsafe impl Sync for CompressParams {}
 
 /// Possible choices for modes of compression
 pub enum CompressMode {
     /// Default compression mode, the compressor does not know anything in
     /// advance about the properties of the input.
-    Generic = brotli_sys::RUST_MODE_GENERIC as isize,
+    Generic,
     /// Compression mode for utf-8 formatted text input.
-    Text = brotli_sys::RUST_MODE_TEXT as isize,
+    Text,
     /// Compression mode in WOFF 2.0.
-    Font = brotli_sys::RUST_MODE_FONT as isize,
+    Font,
 }
 
 /// Error that can happen from decompressing or compressing a brotli stream.
@@ -196,8 +204,22 @@ impl Compress {
     /// Creates a new compressor ready to encode data into brotli
     pub fn new(params: &CompressParams) -> Compress {
         unsafe {
-            let state = brotli_sys::RustBrotliCompressorCreate(params.params);
+            let state = brotli_sys::BrotliEncoderCreateInstance(None, None, 0 as *mut _);
             assert!(!state.is_null());
+
+            brotli_sys::BrotliEncoderSetParameter(state,
+                                                  brotli_sys::RUST_PARAM_MODE,
+                                                  params.mode_as_native());
+            brotli_sys::BrotliEncoderSetParameter(state,
+                                                  brotli_sys::RUST_PARAM_QUALITY,
+                                                  params.quality);
+            brotli_sys::BrotliEncoderSetParameter(state,
+                                                  brotli_sys::RUST_PARAM_LGWIN,
+                                                  params.lgwin);
+            brotli_sys::BrotliEncoderSetParameter(state,
+                                                  brotli_sys::RUST_PARAM_LGBLOCK,
+                                                  params.lgblock);
+
             Compress { state: state }
         }
     }
@@ -208,7 +230,7 @@ impl Compress {
     /// Data is fed into this compressor via the `copy_input` function, and then
     /// it's later compressed via the `write_brotli_data` function.
     pub fn input_block_size(&self) -> usize {
-        unsafe { brotli_sys::RustBrotliCompressorInputBlockSize(self.state) }
+        unsafe { brotli_sys::BrotliEncoderInputBlockSize(self.state) }
     }
 
     // Apparently this is just a shim around CopyInputToRingBuffer,
@@ -286,9 +308,9 @@ impl Compress {
     /// generate an error.
     pub fn copy_input(&mut self, input: &[u8]) {
         unsafe {
-            brotli_sys::RustBrotliCompressorCopyInputToRingBuffer(self.state,
-                                                                  input.len(),
-                                                                  input.as_ptr())
+            brotli_sys::BrotliEncoderCopyInputToRingBuffer(self.state,
+                                                           input.len(),
+                                                           input.as_ptr())
         }
     }
 
@@ -309,11 +331,11 @@ impl Compress {
         let mut ptr = 0 as *mut _;
         unsafe {
             let (last, flush) = (last as c_int, force_flush as c_int);
-            let r = brotli_sys::RustBrotliCompressorWriteBrotliData(self.state,
-                                                                    last,
-                                                                    flush,
-                                                                    &mut size,
-                                                                    &mut ptr);
+            let r = brotli_sys::BrotliEncoderWriteData(self.state,
+                                                       last,
+                                                       flush,
+                                                       &mut size,
+                                                       &mut ptr);
             if r == 0 {
                 Err(Error(()))
             } else if size == 0 {
@@ -328,7 +350,7 @@ impl Compress {
 impl Drop for Compress {
     fn drop(&mut self) {
         unsafe {
-            brotli_sys::RustBrotliCompressorDestroy(self.state);
+            brotli_sys::BrotliEncoderDestroyInstance(self.state);
         }
     }
 }
@@ -345,11 +367,13 @@ pub fn compress_buf(params: &CompressParams,
                     output: &mut &mut [u8]) -> Result<usize, Error> {
     let mut size = output.len();
     let r = unsafe {
-        brotli_sys::RustBrotliCompressBuffer(params.params,
-                                             input.len(),
-                                             input.as_ptr(),
-                                             &mut size,
-                                             output.as_mut_ptr())
+        brotli_sys::BrotliEncoderCompress(params.quality as c_int,
+                                          params.lgwin as c_int,
+                                          params.mode_as_native(),
+                                          input.len(),
+                                          input.as_ptr(),
+                                          &mut size,
+                                          output.as_mut_ptr())
     };
     *output = &mut mem::replace(output, &mut [])[..size];
     if r == 0 {
@@ -367,47 +391,73 @@ pub fn compress_buf(params: &CompressParams,
 pub fn compress_vec(params: &CompressParams,
                     input: &[u8],
                     output: &mut Vec<u8>) -> Result<(), Error> {
-    let r = unsafe {
-        brotli_sys::RustBrotliCompressBufferVec(params.params,
-                                                input.len(),
-                                                input.as_ptr(),
-                                                output as *mut _ as *mut c_void,
-                                                callback)
-    };
-    return if r == 0 {
-        Err(Error(()))
-    } else {
-        Ok(())
-    };
+    let mut available_in = 0;
+    let mut next_in: *const u8 = ptr::null();
+    let mut total_out = 0;
+    let mut end_of_input = false;
+    let mut input_pos = 0;
+    let compress = Compress::new(params);
 
-    extern fn callback(output: *mut c_void,
-                       buf: *const c_void,
-                       size: size_t) -> c_int {
+    const OUTPUT_BUFFER_SIZE: usize = 65536;
+    let mut output_buffer = [0u8; OUTPUT_BUFFER_SIZE];
+
+    loop {
         unsafe {
-            let output = &mut *(output as *mut Vec<u8>);
-            let input = slice::from_raw_parts(buf as *mut u8, size);
-            output.extend_from_slice(input);
-            1 // "true" == all data written
+            if available_in == 0 && !end_of_input {
+                if input_pos == input.len() {
+                    end_of_input = true;
+                    available_in = 0;
+                } else {
+                    available_in = cmp::min(compress.input_block_size(), input.len() - input_pos);
+                    if available_in == 0 {
+                        continue;
+                    }
+                    next_in = input.as_ptr().offset(input_pos as isize);
+                    input_pos += available_in;
+                }
+            }
+            let mut available_out = OUTPUT_BUFFER_SIZE;
+            let operation = if end_of_input {
+                brotli_sys::RUST_OPERATION_FINISH
+            } else {
+                brotli_sys::RUST_OPERATION_PROCESS
+            };
+            if brotli_sys::BrotliEncoderCompressStream(compress.state,
+                                                       operation,
+                                                       &mut available_in,
+                                                       &mut next_in,
+                                                       &mut available_out,
+                                                       &mut output_buffer.as_mut_ptr(),
+                                                       &mut total_out) != 1 {
+                return Err(Error(()));
+            }
+
+            let used_output = OUTPUT_BUFFER_SIZE - available_out;
+            if used_output != 0 {
+                output.extend_from_slice(&output_buffer[..used_output]);
+            }
+            if brotli_sys::BrotliEncoderIsFinished(compress.state) == 1 {
+                break;
+            }
         }
     }
+    Ok(())
 }
 
 impl CompressParams {
     /// Creates a new default set of compression parameters.
     pub fn new() -> CompressParams {
-        unsafe {
-            let params = brotli_sys::RustBrotliParamsCreate();
-            assert!(!params.is_null());
-            CompressParams { params: params }
+        CompressParams {
+            mode: CompressMode::Generic,
+            quality: brotli_sys::RUST_DEFAULT_QUALITY,
+            lgwin: brotli_sys::RUST_DEFAULT_WINDOW,
+            lgblock: 0,
         }
     }
 
     /// Set the mode of this compression.
     pub fn mode(&mut self, mode: CompressMode) -> &mut CompressParams {
-        unsafe {
-            brotli_sys::RustBrotliParamsSetMode(self.params,
-                                                mode as brotli_sys::RustBrotliMode);
-        }
+        self.mode = mode;
         self
     }
 
@@ -416,10 +466,7 @@ impl CompressParams {
     /// The higher the quality, the slower the compression. Currently the range
     /// for the quality is 0 to 11.
     pub fn quality(&mut self, quality: u32) -> &mut CompressParams {
-        unsafe {
-            brotli_sys::RustBrotliParamsSetQuality(self.params,
-                                                   quality as c_int);
-        }
+        self.quality = quality;
         self
     }
 
@@ -427,10 +474,7 @@ impl CompressParams {
     ///
     /// Currently the range is 10 to 24.
     pub fn lgwin(&mut self, lgwin: u32) -> &mut CompressParams {
-        unsafe {
-            brotli_sys::RustBrotliParamsSetLgwin(self.params,
-                                                 lgwin as c_int);
-        }
+        self.lgwin = lgwin;
         self
     }
 
@@ -439,18 +483,15 @@ impl CompressParams {
     /// Currently the range is 16 to 24, and if set to 0 the value will be set
     /// based on the quality.
     pub fn lgblock(&mut self, lgblock: u32) -> &mut CompressParams {
-        unsafe {
-            brotli_sys::RustBrotliParamsSetLgblock(self.params,
-                                                   lgblock as c_int);
-        }
+        self.lgblock = lgblock;
         self
     }
-}
 
-impl Drop for CompressParams {
-    fn drop(&mut self) {
-        unsafe {
-            brotli_sys::RustBrotliParamsDestroy(self.params);
+    unsafe fn mode_as_native(&self) -> brotli_sys::BrotliEncoderMode {
+        match self.mode {
+            CompressMode::Generic => brotli_sys::RUST_MODE_GENERIC,
+            CompressMode::Text => brotli_sys::RUST_MODE_TEXT,
+            CompressMode::Font => brotli_sys::RUST_MODE_FONT,
         }
     }
 }
