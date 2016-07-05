@@ -5,11 +5,10 @@ use std::error;
 use std::fmt;
 use std::io;
 use std::mem;
-use std::ptr;
 use std::slice;
 
 use brotli_sys;
-use libc::c_int;
+use libc::{c_int, uint32_t};
 
 /// In-memory state for decompressing brotli-encoded data.
 ///
@@ -36,15 +35,15 @@ unsafe impl Sync for Compress {}
 /// Parameters passed to various compression routines.
 pub struct CompressParams {
     /// Compression mode.
-    pub mode: CompressMode,
+    mode: CompressMode,
     /// Controls the compression-speed vs compression-density tradeoffs. The higher the `quality`,
     /// the slower the compression. Range is 0 to 11.
-    pub quality: u32,
+    quality: u32,
     /// Base 2 logarithm of the sliding window size. Range is 10 to 24.
-    pub lgwin: u32,
+    lgwin: u32,
     /// Base 2 logarithm of the maximum input block size. Range is 16 to 24. If set to 0, the value
     /// will be set based on the quality.
-    pub lgblock: u32,
+    lgblock: u32,
 }
 
 /// Possible choices for modes of compression
@@ -208,16 +207,16 @@ impl Compress {
             assert!(!state.is_null());
 
             brotli_sys::BrotliEncoderSetParameter(state,
-                                                  brotli_sys::RUST_PARAM_MODE,
-                                                  params.mode_as_native());
+                                                  brotli_sys::BROTLI_PARAM_MODE,
+                                                  params.mode_as_native() as uint32_t);
             brotli_sys::BrotliEncoderSetParameter(state,
-                                                  brotli_sys::RUST_PARAM_QUALITY,
+                                                  brotli_sys::BROTLI_PARAM_QUALITY,
                                                   params.quality);
             brotli_sys::BrotliEncoderSetParameter(state,
-                                                  brotli_sys::RUST_PARAM_LGWIN,
+                                                  brotli_sys::BROTLI_PARAM_LGWIN,
                                                   params.lgwin);
             brotli_sys::BrotliEncoderSetParameter(state,
-                                                  brotli_sys::RUST_PARAM_LGBLOCK,
+                                                  brotli_sys::BROTLI_PARAM_LGBLOCK,
                                                   params.lgblock);
 
             Compress { state: state }
@@ -391,55 +390,18 @@ pub fn compress_buf(params: &CompressParams,
 pub fn compress_vec(params: &CompressParams,
                     input: &[u8],
                     output: &mut Vec<u8>) -> Result<(), Error> {
-    let mut available_in = 0;
-    let mut next_in: *const u8 = ptr::null();
-    let mut total_out = 0;
     let mut end_of_input = false;
     let mut input_pos = 0;
-    let compress = Compress::new(params);
-
-    const OUTPUT_BUFFER_SIZE: usize = 65536;
-    let mut output_buffer = [0u8; OUTPUT_BUFFER_SIZE];
-
-    loop {
-        unsafe {
-            if available_in == 0 && !end_of_input {
-                if input_pos == input.len() {
-                    end_of_input = true;
-                    available_in = 0;
-                } else {
-                    available_in = cmp::min(compress.input_block_size(), input.len() - input_pos);
-                    if available_in == 0 {
-                        continue;
-                    }
-                    next_in = input.as_ptr().offset(input_pos as isize);
-                    input_pos += available_in;
-                }
-            }
-            let mut available_out = OUTPUT_BUFFER_SIZE;
-            let operation = if end_of_input {
-                brotli_sys::RUST_OPERATION_FINISH
-            } else {
-                brotli_sys::RUST_OPERATION_PROCESS
-            };
-            if brotli_sys::BrotliEncoderCompressStream(compress.state,
-                                                       operation,
-                                                       &mut available_in,
-                                                       &mut next_in,
-                                                       &mut available_out,
-                                                       &mut output_buffer.as_mut_ptr(),
-                                                       &mut total_out) != 1 {
-                return Err(Error(()));
-            }
-
-            let used_output = OUTPUT_BUFFER_SIZE - available_out;
-            if used_output != 0 {
-                output.extend_from_slice(&output_buffer[..used_output]);
-            }
-            if brotli_sys::BrotliEncoderIsFinished(compress.state) == 1 {
-                break;
-            }
+    let mut compress = Compress::new(params);
+    while !end_of_input {
+        if input_pos == input.len() {
+            end_of_input = true;
+        } else {
+            let available_in = cmp::min(compress.input_block_size(), input.len() - input_pos);
+            compress.copy_input(&input[input_pos..(input_pos + available_in)]);
+            input_pos += available_in;
         }
+        output.extend_from_slice(&try!(compress.compress(end_of_input, false)));
     }
     Ok(())
 }
@@ -449,8 +411,8 @@ impl CompressParams {
     pub fn new() -> CompressParams {
         CompressParams {
             mode: CompressMode::Generic,
-            quality: brotli_sys::RUST_DEFAULT_QUALITY,
-            lgwin: brotli_sys::RUST_DEFAULT_WINDOW,
+            quality: brotli_sys::BROTLI_DEFAULT_QUALITY,
+            lgwin: brotli_sys::BROTLI_DEFAULT_WINDOW,
             lgblock: 0,
         }
     }
@@ -487,11 +449,11 @@ impl CompressParams {
         self
     }
 
-    unsafe fn mode_as_native(&self) -> brotli_sys::BrotliEncoderMode {
+    fn mode_as_native(&self) -> brotli_sys::BrotliEncoderMode {
         match self.mode {
-            CompressMode::Generic => brotli_sys::RUST_MODE_GENERIC,
-            CompressMode::Text => brotli_sys::RUST_MODE_TEXT,
-            CompressMode::Font => brotli_sys::RUST_MODE_FONT,
+            CompressMode::Generic => brotli_sys::BROTLI_MODE_GENERIC,
+            CompressMode::Text => brotli_sys::BROTLI_MODE_TEXT,
+            CompressMode::Font => brotli_sys::BROTLI_MODE_FONT,
         }
     }
 }

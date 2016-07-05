@@ -11,20 +11,15 @@ fn main() {
     }
 
     let src = env::current_dir().unwrap();
-    println!("cargo:include={}", src.join("brotli/dec").display());
-    println!("cargo:myinclude={}", src.join("src").display());
+    println!("cargo:dec_include={}", src.join("brotli/dec").display());
+    println!("cargo:enc_include={}", src.join("brotli/enc").display());
 
     gcc::Config::new()
-        .include("brotli/dec")
         .file("brotli/common/dictionary.c")
         .file("brotli/dec/bit_reader.c")
         .file("brotli/dec/decode.c")
         .file("brotli/dec/huffman.c")
         .file("brotli/dec/state.c")
-        .compile("libbrotli-dec.a");
-
-    gcc::Config::new()
-        .include("brotli/enc")
         .file("brotli/enc/backward_references.c")
         .file("brotli/enc/bit_cost.c")
         .file("brotli/enc/block_splitter.c")
@@ -40,5 +35,5 @@ fn main() {
         .file("brotli/enc/metablock.c")
         .file("brotli/enc/static_dict.c")
         .file("brotli/enc/utf8_util.c")
-        .compile("libbrotli-enc.a");
+        .compile("libbrotli.a");
 }

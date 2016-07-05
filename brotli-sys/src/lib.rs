@@ -46,6 +46,8 @@ pub struct BrotliStateStruct {
     pub ringbuffer_mask: c_int,
     pub dist_rb_idx: c_int,
     pub dist_rb: [c_int; 4],
+    pub error_code: c_int,
+    pub sub_loop_counter: u32,
     pub ringbuffer: *mut u8,
     pub ringbuffer_end: *mut u8,
     pub htree_command: *mut HuffmanCode,
@@ -53,7 +55,6 @@ pub struct BrotliStateStruct {
     pub context_lookup2: *const u8,
     pub context_map_slice: *mut u8,
     pub dist_context_map_slice: *mut u8,
-    pub sub_loop_counter: u32,
     pub literal_hgroup: HuffmanTreeGroup,
     pub insert_copy_hgroup: HuffmanTreeGroup,
     pub distance_hgroup: HuffmanTreeGroup,
@@ -72,7 +73,6 @@ pub struct BrotliStateStruct {
     pub num_dist_htrees: u32,
     pub dist_context_map: *mut u8,
     pub literal_htree: *mut HuffmanCode,
-    pub literal_htree_index: u8,
     pub dist_htree_index: u8,
     pub repeat_code_len: u32,
     pub prev_code_len: u32,
@@ -96,7 +96,7 @@ pub struct BrotliStateStruct {
     pub code: u32,
     pub context_map_table: [HuffmanCode; 646],
     pub mtf_upper_bound: u32,
-    pub mtf: [u8; 256],
+    pub mtf: [u8; 260],
     pub custom_dict: *const u8,
     pub custom_dict_size: c_int,
     pub substate_metablock_header: BrotliRunningMetablockHeaderState,
@@ -114,6 +114,7 @@ pub struct BrotliStateStruct {
     pub num_literal_htrees: u32,
     pub context_map: *mut u8,
     pub context_modes: *mut u8,
+    pub trivial_literal_contexts: [u32; 8],
 }
 
 #[cfg(target_pointer_width = "32")]
@@ -212,21 +213,21 @@ pub type BrotliEncoderParameter = __enum_ty;
 pub type BrotliEncoderOperation = __enum_ty;
 pub type BrotliEncoderStreamState = __enum_ty;
 
-pub const RUST_MODE_GENERIC: BrotliEncoderMode = 0;
-pub const RUST_MODE_TEXT: BrotliEncoderMode = 1;
-pub const RUST_MODE_FONT: BrotliEncoderMode = 2;
+pub const BROTLI_MODE_GENERIC: BrotliEncoderMode = 0;
+pub const BROTLI_MODE_TEXT: BrotliEncoderMode = 1;
+pub const BROTLI_MODE_FONT: BrotliEncoderMode = 2;
 
-pub const RUST_PARAM_MODE: BrotliEncoderParameter = 0;
-pub const RUST_PARAM_QUALITY: BrotliEncoderParameter = 1;
-pub const RUST_PARAM_LGWIN: BrotliEncoderParameter = 2;
-pub const RUST_PARAM_LGBLOCK: BrotliEncoderParameter = 3;
+pub const BROTLI_PARAM_MODE: BrotliEncoderParameter = 0;
+pub const BROTLI_PARAM_QUALITY: BrotliEncoderParameter = 1;
+pub const BROTLI_PARAM_LGWIN: BrotliEncoderParameter = 2;
+pub const BROTLI_PARAM_LGBLOCK: BrotliEncoderParameter = 3;
 
-pub const RUST_OPERATION_PROCESS: BrotliEncoderOperation = 0;
-pub const RUST_OPERATION_FLUSH: BrotliEncoderOperation = 1;
-pub const RUST_OPERATION_FINISH: BrotliEncoderOperation = 2;
+pub const BROTLI_OPERATION_PROCESS: BrotliEncoderOperation = 0;
+pub const BROTLI_OPERATION_FLUSH: BrotliEncoderOperation = 1;
+pub const BROTLI_OPERATION_FINISH: BrotliEncoderOperation = 2;
 
-pub const RUST_DEFAULT_QUALITY: u32 = 11;
-pub const RUST_DEFAULT_WINDOW: u32 = 22;
+pub const BROTLI_DEFAULT_QUALITY: u32 = 11;
+pub const BROTLI_DEFAULT_WINDOW: u32 = 22;
 
 pub type BrotliEncoderState = BrotliEncoderStateStruct;
 
@@ -256,7 +257,7 @@ pub struct BrotliEncoderStateStruct {
     pub prev_byte2_: u8,
     pub storage_size_: size_t,
     pub storage_: *mut u8,
-    pub small_table_: [c_int; 1 << 10],
+    pub small_table_: [c_int; 1024],  // 1 << 10
     pub large_table_: *mut c_int,
     pub large_table_size_: size_t,
     pub cmd_depths_: [u8; 128],
@@ -296,7 +297,7 @@ pub struct Hashers {
 
 #[repr(C)]
 pub struct H2 {
-    pub buckets_: [u32; (1 << 16) + 1],
+    pub buckets_: [u32; 65537],  // (1 << 16) + 1
     pub is_dirty_: c_int,
     pub num_dict_lookups_: size_t,
     pub num_dict_matches_: size_t,
@@ -304,7 +305,7 @@ pub struct H2 {
 
 #[repr(C)]
 pub struct H3 {
-    pub buckets_: [u32; (1 << 16) + 2],
+    pub buckets_: [u32; 65538],  // (1 << 16) + 2
     pub is_dirty_: c_int,
     pub num_dict_lookups_: size_t,
     pub num_dict_matches_: size_t,
@@ -312,7 +313,7 @@ pub struct H3 {
 
 #[repr(C)]
 pub struct H4 {
-    pub buckets_: [u32; (1 << 17) + 4],
+    pub buckets_: [u32; 131076],  // (1 << 17) + 4
     pub is_dirty_: c_int,
     pub num_dict_lookups_: size_t,
     pub num_dict_matches_: size_t,
@@ -320,8 +321,8 @@ pub struct H4 {
 
 #[repr(C)]
 pub struct H5 {
-    pub num_: [u16; 1 << 14],
-    pub buckets_: [u32; (1 << 4) << 14],
+    pub num_: [u16; 16384],  // 1 << 14
+    pub buckets_: [u32; 262144],  // (1 << 4) << 14
     pub is_dirty_: c_int,
     pub num_dict_lookups_: size_t,
     pub num_dict_matches_: size_t,
@@ -329,8 +330,8 @@ pub struct H5 {
 
 #[repr(C)]
 pub struct H6 {
-    pub num_: [u16; 1 << 14],
-    pub buckets_: [u32; (1 << 5) << 14],
+    pub num_: [u16; 16384],  // 1 << 14
+    pub buckets_: [u32; 524288],  // (1 << 5) << 14
     pub is_dirty_: c_int,
     pub num_dict_lookups_: size_t,
     pub num_dict_matches_: size_t,
@@ -338,8 +339,8 @@ pub struct H6 {
 
 #[repr(C)]
 pub struct H7 {
-    pub num_: [u16; 1 << 15],
-    pub buckets_: [u32; (1 << 6) << 15],
+    pub num_: [u16; 32768],  // 1 << 15
+    pub buckets_: [u32; 2097152],  // (1 << 6) << 15
     pub is_dirty_: c_int,
     pub num_dict_lookups_: size_t,
     pub num_dict_matches_: size_t,
@@ -347,8 +348,8 @@ pub struct H7 {
 
 #[repr(C)]
 pub struct H8 {
-    pub num_: [u16; 1 << 15],
-    pub buckets_: [u32; (1 << 7) << 15],
+    pub num_: [u16; 32768],  // 1 << 15
+    pub buckets_: [u32; 4194304],  // (1 << 7) << 15
     pub is_dirty_: c_int,
     pub num_dict_lookups_: size_t,
     pub num_dict_matches_: size_t,
@@ -356,8 +357,8 @@ pub struct H8 {
 
 #[repr(C)]
 pub struct H9 {
-    pub num_: [u16; 1 << 15],
-    pub buckets_: [u32; (1 << 8) << 15],
+    pub num_: [u16; 32768],  // 1 << 15
+    pub buckets_: [u32; 8388608],  // (1 << 8) << 15
     pub is_dirty_: c_int,
     pub num_dict_lookups_: size_t,
     pub num_dict_matches_: size_t,
@@ -366,7 +367,7 @@ pub struct H9 {
 #[repr(C)]
 pub struct H10 {
     pub window_mask_: size_t,
-    pub buckets_: [u32; 1 << 17],
+    pub buckets_: [u32; 131072],  // 1 << 17
     pub forest_: *mut u32,
     pub invalid_pos_: u32,
     pub is_dirty_: c_int,
