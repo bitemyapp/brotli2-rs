@@ -26,14 +26,7 @@ fn main() {
             s.to_string()
         }
     });
-    cfg.skip_field(|s, field| {
-        s == "RingBuffer" && match field {
-            "size_" | "mask_" | "tail_size_" | "total_size_" => true,
-            _ => false
-        }
-    });
-    cfg.skip_type(|n| n == "__enum_ty" || n == "BrotliEncoderState" || n == "BrotliEncoderStreamState");
+    cfg.skip_type(|n| n == "__enum_ty");
     cfg.skip_signededness(|s| s.ends_with("_func") || s == "BrotliState");
-    cfg.skip_struct(|s| s == "BrotliEncoderStateStruct");
     cfg.generate("../brotli-sys/src/lib.rs", "all.rs");
 }
