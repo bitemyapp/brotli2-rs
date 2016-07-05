@@ -27,18 +27,19 @@ impl<W: Write> BrotliEncoder<W> {
     /// Create a new compression stream which will compress at the given level
     /// to write compress output to the give output stream.
     pub fn new(obj: W, level: u32) -> BrotliEncoder<W> {
-        BrotliEncoder::new_params(obj, CompressParams::new().quality(level))
-    }
-
-    /// Creates a new encoder with a custom `CompressParams`.
-    pub fn new_params(obj: W, params: &CompressParams) -> BrotliEncoder<W> {
-        let data = Compress::new(params);
+        let mut data = Compress::new();
+        data.set_params(CompressParams::new().quality(level));
         BrotliEncoder {
             max: data.input_block_size(),
             cur: 0,
             data: data,
             obj: Some(obj),
         }
+    }
+
+    /// Creates a new encoder with a custom `CompressParams`.
+    pub fn set_params(&mut self, params: &CompressParams) {
+        self.data.set_params(params);
     }
 
 

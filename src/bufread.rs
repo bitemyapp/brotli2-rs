@@ -34,12 +34,8 @@ impl<R: BufRead> BrotliEncoder<R> {
     ///
     /// The `level` argument here is typically 0-11.
     pub fn new(r: R, level: u32) -> BrotliEncoder<R> {
-        BrotliEncoder::new_params(r, CompressParams::new().quality(level))
-    }
-
-    /// Creates a new encoder with a custom `CompressParams`.
-    pub fn new_params(r: R, params: &CompressParams) -> BrotliEncoder<R> {
-        let data = Compress::new(params);
+        let mut data = Compress::new();
+        data.set_params(CompressParams::new().quality(level));
         BrotliEncoder {
             obj: r,
             max: data.input_block_size(),
@@ -48,6 +44,11 @@ impl<R: BufRead> BrotliEncoder<R> {
             buf: Cursor::new(Vec::new()),
             done: false,
         }
+    }
+
+    /// Creates a new encoder with a custom `CompressParams`.
+    pub fn set_params(&mut self, params: &CompressParams) {
+        self.data.set_params(params);
     }
 
     /// Acquires a reference to the underlying stream

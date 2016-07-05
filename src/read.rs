@@ -29,14 +29,9 @@ impl<R: Read> BrotliEncoder<R> {
         }
     }
 
-    /// Creates a new encoder with a custom `Stream`.
-    ///
-    /// The `Stream` can be pre-configured for multithreaded encoding, different
-    /// compression options/tuning, etc.
-    pub fn new_params(r: R, params: &CompressParams) -> BrotliEncoder<R> {
-        BrotliEncoder {
-            inner: bufread::BrotliEncoder::new_params(BufReader::new(r), params),
-        }
+    /// Configure the compression parameters of this encoder.
+    pub fn set_parms(&mut self, params: &CompressParams) {
+        self.inner.set_params(params);
     }
 
     /// Acquires a reference to the underlying stream

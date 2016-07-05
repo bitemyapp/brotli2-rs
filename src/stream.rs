@@ -200,23 +200,10 @@ pub fn decompress_buf(input: &[u8],
 
 impl Compress {
     /// Creates a new compressor ready to encode data into brotli
-    pub fn new(params: &CompressParams) -> Compress {
+    pub fn new() -> Compress {
         unsafe {
             let state = brotli_sys::BrotliEncoderCreateInstance(None, None, 0 as *mut _);
             assert!(!state.is_null());
-
-            brotli_sys::BrotliEncoderSetParameter(state,
-                                                  brotli_sys::BROTLI_PARAM_MODE,
-                                                  params.mode_as_native() as uint32_t);
-            brotli_sys::BrotliEncoderSetParameter(state,
-                                                  brotli_sys::BROTLI_PARAM_QUALITY,
-                                                  params.quality);
-            brotli_sys::BrotliEncoderSetParameter(state,
-                                                  brotli_sys::BROTLI_PARAM_LGWIN,
-                                                  params.lgwin);
-            brotli_sys::BrotliEncoderSetParameter(state,
-                                                  brotli_sys::BROTLI_PARAM_LGBLOCK,
-                                                  params.lgblock);
 
             Compress { state: state }
         }
@@ -381,6 +368,27 @@ impl Compress {
             }
         }
     }
+
+    /// Configure the parameters of this compression session.
+    ///
+    /// Note that this is likely to only successful if called before compression
+    /// starts.
+    pub fn set_params(&mut self, params: &CompressParams) {
+        unsafe {
+            brotli_sys::BrotliEncoderSetParameter(self.state,
+                                                  brotli_sys::BROTLI_PARAM_MODE,
+                                                  params.mode_as_native() as u32);
+            brotli_sys::BrotliEncoderSetParameter(self.state,
+                                                  brotli_sys::BROTLI_PARAM_QUALITY,
+                                                  params.quality);
+            brotli_sys::BrotliEncoderSetParameter(self.state,
+                                                  brotli_sys::BROTLI_PARAM_LGWIN,
+                                                  params.lgwin);
+            brotli_sys::BrotliEncoderSetParameter(self.state,
+                                                  brotli_sys::BROTLI_PARAM_LGBLOCK,
+                                                  params.lgblock);
+        }
+    }
 }
 
 impl Drop for Compress {
@@ -541,7 +549,7 @@ mod tests {
     #[test]
     fn compress_smoke() {
         let mut data = Vec::new();
-        let mut c = Compress::new(&CompressParams::new());
+        let mut c = Compress::new();
         c.copy_input(b"hello!");
         data.extend_from_slice(c.compress(true, false).unwrap());
 
@@ -550,7 +558,7 @@ mod tests {
         assert_eq!(&dst[..6], b"hello!");
 
         data.truncate(0);
-        let mut c = Compress::new(&CompressParams::new());
+        let mut c = Compress::new();
         c.copy_input(b"hel");
         data.extend_from_slice(c.compress(false, true).unwrap());
         c.copy_input(b"lo!");
