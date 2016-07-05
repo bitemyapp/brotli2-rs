@@ -1,6 +1,5 @@
 //! In-memory compression/decompression streams
 
-use std::cmp;
 use std::error;
 use std::fmt;
 use std::io;
@@ -8,7 +7,7 @@ use std::mem;
 use std::slice;
 
 use brotli_sys;
-use libc::{c_int, uint32_t};
+use libc::c_int;
 
 /// In-memory state for decompressing brotli-encoded data.
 ///
@@ -324,6 +323,44 @@ impl Compress {
     ///
     /// Returns an error, if any, and otherwise the internal buffer which
     /// contains the output data of compressed information.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::cmp;
+    /// use brotli2::stream::{Error, Compress, decompress_buf};
+    ///
+    /// // An example of compressing `input` into the destination vector
+    /// // `output`
+    /// fn compress_vec(mut input: &[u8],
+    ///                 output: &mut Vec<u8>) -> Result<(), Error> {
+    ///     let mut end_of_input = false;
+    ///     let mut input_pos = 0;
+    ///     let mut compress = Compress::new();
+    ///     while input.len() > 0 {
+    ///         let amt = cmp::min(compress.input_block_size(), input.len());
+    ///         compress.copy_input(&input[..amt]);
+    ///         input = &input[amt..];
+    ///         output.extend_from_slice(&try!(compress.compress(false, false)));
+    ///     }
+    ///     output.extend_from_slice(&try!(compress.compress(true, false)));
+    ///     Ok(())
+    /// }
+    ///
+    /// fn assert_roundtrip(data: &[u8]) {
+    ///     let mut compressed = Vec::new();
+    ///     compress_vec(data, &mut compressed).unwrap();
+    ///
+    ///     let mut decompressed = [0; 2048];
+    ///     let mut decompressed = &mut decompressed[..];
+    ///     decompress_buf(&compressed, &mut decompressed).unwrap();
+    ///     assert_eq!(decompressed, data);
+    /// }
+    ///
+    /// assert_roundtrip(b"Hello, World!");
+    /// assert_roundtrip(b"");
+    /// assert_roundtrip(&[6; 1024]);
+    /// ```
     pub fn compress(&mut self, last: bool, force_flush: bool)
                     -> Result<&[u8], Error> {
         let mut size = 0;
@@ -380,30 +417,6 @@ pub fn compress_buf(params: &CompressParams,
     } else {
         Ok(size)
     }
-}
-
-/// Compresses the data in `input` into `output`.
-///
-/// The `output` vector will be pushed onto and reallocated if necessary, but
-/// the entirety of the compressed `input` will be present in `output` when
-/// finished.
-pub fn compress_vec(params: &CompressParams,
-                    input: &[u8],
-                    output: &mut Vec<u8>) -> Result<(), Error> {
-    let mut end_of_input = false;
-    let mut input_pos = 0;
-    let mut compress = Compress::new(params);
-    while !end_of_input {
-        if input_pos == input.len() {
-            end_of_input = true;
-        } else {
-            let available_in = cmp::min(compress.input_block_size(), input.len() - input_pos);
-            compress.copy_input(&input[input_pos..(input_pos + available_in)]);
-            input_pos += available_in;
-        }
-        output.extend_from_slice(&try!(compress.compress(end_of_input, false)));
-    }
-    Ok(())
 }
 
 impl CompressParams {
@@ -487,22 +500,6 @@ mod tests {
     }
 
     #[test]
-    fn compress_vec_smoke() {
-        let mut data = Vec::new();
-        compress_vec(&CompressParams::new(), b"hello!", &mut data).unwrap();
-
-        let mut dst = [0; 128];
-        assert_eq!(decompressed_size(&data), Ok(6));
-        {
-            let mut dst = &mut dst[..];
-            let n = decompress_buf(&data, &mut dst).unwrap();
-            assert_eq!(n, Status::Finished);
-            assert_eq!(dst.len(), 6);
-        }
-        assert_eq!(&dst[..6], b"hello!");
-    }
-
-    #[test]
     fn compress_buf_smoke() {
         let mut data = [0; 128];
         let mut data = &mut data[..];
@@ -521,8 +518,9 @@ mod tests {
 
     #[test]
     fn decompressor_smoke() {
-        let mut data = Vec::new();
-        compress_vec(&CompressParams::new(), b"hello!", &mut data).unwrap();
+        let mut data = [0; 128];
+        let mut data = &mut data[..];
+        compress_buf(&CompressParams::new(), b"hello!", &mut data).unwrap();
 
         let mut d = Decompress::new();
         let mut dst = [0; 128];
