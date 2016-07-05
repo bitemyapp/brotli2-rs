@@ -11,38 +11,29 @@ fn main() {
     }
 
     let src = env::current_dir().unwrap();
-    println!("cargo:include={}", src.join("brotli/dec").display());
-    println!("cargo:myinclude={}", src.join("src").display());
+    println!("cargo:dec_include={}", src.join("brotli/dec").display());
+    println!("cargo:enc_include={}", src.join("brotli/enc").display());
 
     gcc::Config::new()
-        .include("brotli/dec")
+        .file("brotli/common/dictionary.c")
         .file("brotli/dec/bit_reader.c")
         .file("brotli/dec/decode.c")
-        .file("brotli/dec/dictionary.c")
         .file("brotli/dec/huffman.c")
         .file("brotli/dec/state.c")
-        .compile("libbrotli-dec.a");
-
-    // Omit "brotli/enc/dictionary.cc" from the source list in order to avoid
-    // multiple definition linker errors with "brotli/dec/dictionary.c".
-    gcc::Config::new()
-        .cpp(true)
-        .include("brotli/enc")
-        .include("src")
-        .file("src/brotli_capi.cc")
-        .file("brotli/enc/backward_references.cc")
-        .file("brotli/enc/block_splitter.cc")
-        .file("brotli/enc/brotli_bit_stream.cc")
-        .file("brotli/enc/compress_fragment.cc")
-        .file("brotli/enc/compress_fragment_two_pass.cc")
-        .file("brotli/enc/encode.cc")
-        .file("brotli/enc/encode_parallel.cc")
-        .file("brotli/enc/entropy_encode.cc")
-        .file("brotli/enc/histogram.cc")
-        .file("brotli/enc/literal_cost.cc")
-        .file("brotli/enc/metablock.cc")
-        .file("brotli/enc/static_dict.cc")
-        .file("brotli/enc/streams.cc")
-        .file("brotli/enc/utf8_util.cc")
-        .compile("libbrotli-enc.a");
+        .file("brotli/enc/backward_references.c")
+        .file("brotli/enc/bit_cost.c")
+        .file("brotli/enc/block_splitter.c")
+        .file("brotli/enc/brotli_bit_stream.c")
+        .file("brotli/enc/cluster.c")
+        .file("brotli/enc/compress_fragment.c")
+        .file("brotli/enc/compress_fragment_two_pass.c")
+        .file("brotli/enc/encode.c")
+        .file("brotli/enc/entropy_encode.c")
+        .file("brotli/enc/histogram.c")
+        .file("brotli/enc/literal_cost.c")
+        .file("brotli/enc/memory.c")
+        .file("brotli/enc/metablock.c")
+        .file("brotli/enc/static_dict.c")
+        .file("brotli/enc/utf8_util.c")
+        .compile("libbrotli.a");
 }

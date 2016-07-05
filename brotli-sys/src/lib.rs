@@ -13,6 +13,9 @@ pub type __enum_ty = libc::c_uint;
 
 pub type brotli_alloc_func = extern fn(*mut c_void, size_t) -> *mut c_void;
 pub type brotli_free_func = extern fn(*mut c_void, *mut c_void);
+
+// ========== Decoder functionality ==========
+
 pub type BrotliResult = __enum_ty;
 pub type BrotliRunningState = __enum_ty;
 pub type BrotliRunningMetablockHeaderState = __enum_ty;
@@ -43,6 +46,8 @@ pub struct BrotliStateStruct {
     pub ringbuffer_mask: c_int,
     pub dist_rb_idx: c_int,
     pub dist_rb: [c_int; 4],
+    pub error_code: c_int,
+    pub sub_loop_counter: u32,
     pub ringbuffer: *mut u8,
     pub ringbuffer_end: *mut u8,
     pub htree_command: *mut HuffmanCode,
@@ -50,7 +55,6 @@ pub struct BrotliStateStruct {
     pub context_lookup2: *const u8,
     pub context_map_slice: *mut u8,
     pub dist_context_map_slice: *mut u8,
-    pub sub_loop_counter: u32,
     pub literal_hgroup: HuffmanTreeGroup,
     pub insert_copy_hgroup: HuffmanTreeGroup,
     pub distance_hgroup: HuffmanTreeGroup,
@@ -69,7 +73,6 @@ pub struct BrotliStateStruct {
     pub num_dist_htrees: u32,
     pub dist_context_map: *mut u8,
     pub literal_htree: *mut HuffmanCode,
-    pub literal_htree_index: u8,
     pub dist_htree_index: u8,
     pub repeat_code_len: u32,
     pub prev_code_len: u32,
@@ -93,7 +96,7 @@ pub struct BrotliStateStruct {
     pub code: u32,
     pub context_map_table: [HuffmanCode; 646],
     pub mtf_upper_bound: u32,
-    pub mtf: [u8; 256],
+    pub mtf: [u8; 260],
     pub custom_dict: *const u8,
     pub custom_dict_size: c_int,
     pub substate_metablock_header: BrotliRunningMetablockHeaderState,
@@ -111,6 +114,7 @@ pub struct BrotliStateStruct {
     pub num_literal_htrees: u32,
     pub context_map: *mut u8,
     pub context_modes: *mut u8,
+    pub trivial_literal_contexts: [u32; 8],
 }
 
 #[cfg(target_pointer_width = "32")]
@@ -144,14 +148,6 @@ pub const BROTLI_RESULT_ERROR: BrotliResult = 0;
 pub const BROTLI_RESULT_SUCCESS: BrotliResult = 1;
 pub const BROTLI_RESULT_NEEDS_MORE_INPUT: BrotliResult = 2;
 pub const BROTLI_RESULT_NEEDS_MORE_OUTPUT: BrotliResult = 3;
-
-pub enum RustBrotliCompressor {}
-pub enum RustBrotliParams {}
-pub type RustBrotliMode = __enum_ty;
-
-pub const RUST_MODE_GENERIC: RustBrotliMode = 0;
-pub const RUST_MODE_TEXT: RustBrotliMode = 1;
-pub const RUST_MODE_FONT: RustBrotliMode = 2;
 
 extern {
     // BrotliState
@@ -206,71 +202,256 @@ extern {
                                          root_bits: c_int,
                                          symbols: *mut u16,
                                          num_symbols: u32) -> u32;
+}
 
-    // compress params
-    pub fn RustBrotliParamsCreate() -> *mut RustBrotliParams;
-    pub fn RustBrotliParamsDestroy(params: *mut RustBrotliParams);
-    pub fn RustBrotliParamsSetMode(params: *mut RustBrotliParams,
-                                   mode: RustBrotliMode);
-    pub fn RustBrotliParamsSetQuality(params: *mut RustBrotliParams,
-                                      quality: c_int);
-    pub fn RustBrotliParamsSetLgwin(params: *mut RustBrotliParams,
-                                    lgwin: c_int);
-    pub fn RustBrotliParamsSetLgblock(params: *mut RustBrotliParams,
-                                      lgblock: c_int);
-    pub fn RustBrotliParamsSetEnableDictionary(params: *mut RustBrotliParams,
-                                               enable: c_int);
-    pub fn RustBrotliParamsSetEnableTransforms(params: *mut RustBrotliParams,
-                                               enable: c_int);
-    pub fn RustBrotliParamsSetGreedyBlockSplit(params: *mut RustBrotliParams,
-                                               split: c_int);
-    pub fn RustBrotliParamsSetEnableContextModeling(params: *mut RustBrotliParams,
-                                                    enable: c_int);
 
-    // compress in memory
-    pub fn RustBrotliCompressBuffer(params: *const RustBrotliParams,
-                                    input_size: size_t,
-                                    input_buffer: *const u8,
-                                    encoded_size: *mut size_t,
-                                    encoded_buffer: *mut u8) -> c_int;
-    pub fn RustBrotliCompressBufferVec(params: *const RustBrotliParams,
+
+// ========== Encoder functionality ==========
+
+pub type BrotliEncoderMode = __enum_ty;
+pub type BrotliEncoderParameter = __enum_ty;
+pub type BrotliEncoderOperation = __enum_ty;
+pub type BrotliEncoderStreamState = __enum_ty;
+
+pub const BROTLI_MODE_GENERIC: BrotliEncoderMode = 0;
+pub const BROTLI_MODE_TEXT: BrotliEncoderMode = 1;
+pub const BROTLI_MODE_FONT: BrotliEncoderMode = 2;
+
+pub const BROTLI_PARAM_MODE: BrotliEncoderParameter = 0;
+pub const BROTLI_PARAM_QUALITY: BrotliEncoderParameter = 1;
+pub const BROTLI_PARAM_LGWIN: BrotliEncoderParameter = 2;
+pub const BROTLI_PARAM_LGBLOCK: BrotliEncoderParameter = 3;
+
+pub const BROTLI_OPERATION_PROCESS: BrotliEncoderOperation = 0;
+pub const BROTLI_OPERATION_FLUSH: BrotliEncoderOperation = 1;
+pub const BROTLI_OPERATION_FINISH: BrotliEncoderOperation = 2;
+
+pub const BROTLI_DEFAULT_QUALITY: u32 = 11;
+pub const BROTLI_DEFAULT_WINDOW: u32 = 22;
+
+pub type BrotliEncoderState = BrotliEncoderStateStruct;
+
+#[repr(C)]
+pub struct BrotliEncoderStateStruct {
+    pub mode: BrotliEncoderMode,
+    pub quality: c_int,
+    pub lgwin: c_int,
+    pub lgblock: c_int,
+    pub memory_manager_: MemoryManager,
+    pub hashers_: Hashers,
+    pub hash_type_: c_int,
+    pub input_pos_: u64,
+    pub ringbuffer_: RingBuffer,
+    pub cmd_alloc_size_: size_t,
+    pub commands_: *mut Command,
+    pub num_commands_: size_t,
+    pub num_literals_: size_t,
+    pub last_insert_len_: size_t,
+    pub last_flush_pos_: u64,
+    pub last_processed_pos_: u64,
+    pub dist_cache_: [c_int; 4],
+    pub saved_dist_cache_: [c_int; 4],
+    pub last_byte_: u8,
+    pub last_byte_bits_: u8,
+    pub prev_byte_: u8,
+    pub prev_byte2_: u8,
+    pub storage_size_: size_t,
+    pub storage_: *mut u8,
+    pub small_table_: [c_int; 1024],  // 1 << 10
+    pub large_table_: *mut c_int,
+    pub large_table_size_: size_t,
+    pub cmd_depths_: [u8; 128],
+    pub cmd_bits_: [u16; 128],
+    pub cmd_code_: [u8; 512],
+    pub cmd_code_numbits_: size_t,
+    pub command_buf_: *mut u32,
+    pub literal_buf_: *mut u8,
+    pub next_out_: *mut u8,
+    pub available_out_: size_t,
+    pub total_out_: size_t,
+    pub flush_buf_: [u8; 2],
+    pub stream_state_: BrotliEncoderStreamState,
+    pub is_last_block_emitted_: c_int,
+    pub is_initialized_: c_int,
+}
+
+#[repr(C)]
+pub struct MemoryManager {
+    pub alloc_func: Option<brotli_alloc_func>,
+    pub free_func: Option<brotli_free_func>,
+    pub opaque: *mut c_void,
+}
+
+#[repr(C)]
+pub struct Hashers {
+    pub hash_h2: *mut H2,
+    pub hash_h3: *mut H3,
+    pub hash_h4: *mut H4,
+    pub hash_h5: *mut H5,
+    pub hash_h6: *mut H6,
+    pub hash_h7: *mut H7,
+    pub hash_h8: *mut H8,
+    pub hash_h9: *mut H9,
+    pub hash_h10: *mut H10,
+}
+
+#[repr(C)]
+pub struct H2 {
+    pub buckets_: [u32; 65537],  // (1 << 16) + 1
+    pub is_dirty_: c_int,
+    pub num_dict_lookups_: size_t,
+    pub num_dict_matches_: size_t,
+}
+
+#[repr(C)]
+pub struct H3 {
+    pub buckets_: [u32; 65538],  // (1 << 16) + 2
+    pub is_dirty_: c_int,
+    pub num_dict_lookups_: size_t,
+    pub num_dict_matches_: size_t,
+}
+
+#[repr(C)]
+pub struct H4 {
+    pub buckets_: [u32; 131076],  // (1 << 17) + 4
+    pub is_dirty_: c_int,
+    pub num_dict_lookups_: size_t,
+    pub num_dict_matches_: size_t,
+}
+
+#[repr(C)]
+pub struct H5 {
+    pub num_: [u16; 16384],  // 1 << 14
+    pub buckets_: [u32; 262144],  // (1 << 4) << 14
+    pub is_dirty_: c_int,
+    pub num_dict_lookups_: size_t,
+    pub num_dict_matches_: size_t,
+}
+
+#[repr(C)]
+pub struct H6 {
+    pub num_: [u16; 16384],  // 1 << 14
+    pub buckets_: [u32; 524288],  // (1 << 5) << 14
+    pub is_dirty_: c_int,
+    pub num_dict_lookups_: size_t,
+    pub num_dict_matches_: size_t,
+}
+
+#[repr(C)]
+pub struct H7 {
+    pub num_: [u16; 32768],  // 1 << 15
+    pub buckets_: [u32; 2097152],  // (1 << 6) << 15
+    pub is_dirty_: c_int,
+    pub num_dict_lookups_: size_t,
+    pub num_dict_matches_: size_t,
+}
+
+#[repr(C)]
+pub struct H8 {
+    pub num_: [u16; 32768],  // 1 << 15
+    pub buckets_: [u32; 4194304],  // (1 << 7) << 15
+    pub is_dirty_: c_int,
+    pub num_dict_lookups_: size_t,
+    pub num_dict_matches_: size_t,
+}
+
+#[repr(C)]
+pub struct H9 {
+    pub num_: [u16; 32768],  // 1 << 15
+    pub buckets_: [u32; 8388608],  // (1 << 8) << 15
+    pub is_dirty_: c_int,
+    pub num_dict_lookups_: size_t,
+    pub num_dict_matches_: size_t,
+}
+
+#[repr(C)]
+pub struct H10 {
+    pub window_mask_: size_t,
+    pub buckets_: [u32; 131072],  // 1 << 17
+    pub forest_: *mut u32,
+    pub invalid_pos_: u32,
+    pub is_dirty_: c_int,
+}
+
+#[repr(C)]
+pub struct RingBuffer {
+    pub size_: u32,
+    pub mask_: u32,
+    pub tail_size_: u32,
+    pub total_size_: u32,
+    pub cur_size_: u32,
+    pub pos_: u32,
+    pub data_: *mut u8,
+    pub buffer_: *mut u8,
+}
+
+#[repr(C)]
+pub struct Command {
+    pub insert_len_: u32,
+    pub copy_len_: u32,
+    pub dist_extra_: u32,
+    pub cmd_prefix_: u16,
+    pub dist_prefix_: u16,
+}
+
+extern {
+    pub fn BrotliEncoderSetParameter(state: *mut BrotliEncoderState,
+                                     p: BrotliEncoderParameter,
+                                     value: u32)
+                                     -> c_int;
+    pub fn BrotliEncoderCreateInstance(alloc_func: Option<brotli_alloc_func>,
+                                       free_func: Option<brotli_free_func>,
+                                       opaque: *mut c_void)
+                                       -> *mut BrotliEncoderState;
+    pub fn BrotliEncoderDestroyInstance(state: *mut BrotliEncoderState);
+    pub fn BrotliEncoderInputBlockSize(state: *mut BrotliEncoderState) -> size_t;
+    pub fn BrotliEncoderWriteMetaBlock(state: *mut BrotliEncoderState,
                                        input_size: size_t,
                                        input_buffer: *const u8,
-                                       data: *mut c_void,
-                                       callback: extern fn(*mut c_void,
-                                                           *const c_void,
-                                                           size_t) -> c_int)
+                                       is_last: c_int,
+                                       encoded_size: *mut size_t,
+                                       encoded_buffer: *mut u8)
                                        -> c_int;
-
-    // compressor stream
-    pub fn RustBrotliCompressorCreate(params: *const RustBrotliParams)
-                                      -> *mut RustBrotliCompressor;
-    pub fn RustBrotliCompressorDestroy(c: *mut RustBrotliCompressor);
-    pub fn RustBrotliCompressorInputBlockSize(c: *const RustBrotliCompressor)
-                                              -> size_t;
-    pub fn RustBrotliCompressorWriteMetaBlock(c: *mut RustBrotliCompressor,
+    pub fn BrotliEncoderWriteMetadata(state: *mut BrotliEncoderState,
+                                      input_size: size_t,
+                                      input_buffer: *const u8,
+                                      is_last: c_int,
+                                      encoded_size: *mut size_t,
+                                      encoded_buffer: *mut u8)
+                                      -> c_int;
+    pub fn BrotliEncoderFinishStream(state: *mut BrotliEncoderState,
+                                     encoded_size: *mut size_t,
+                                     encoded_buffer: *mut u8)
+                                     -> c_int;
+    pub fn BrotliEncoderCopyInputToRingBuffer(state: *mut BrotliEncoderState,
                                               input_size: size_t,
-                                              input_buffer: *const u8,
-                                              is_last: c_int,
-                                              encoded_size: *mut size_t,
-                                              encoded_buffer: *mut u8)
-                                              -> c_int;
-    pub fn RustBrotliCompressorWriteMetadata(c: *mut RustBrotliCompressor,
-                                             input_size: size_t,
-                                             input_buffer: *const u8,
-                                             is_last: c_int,
-                                             encoded_size: *mut size_t,
-                                             encoded_buffer: *mut u8)
-                                             -> c_int;
-    pub fn RustBrotliCompressorFinishStream(c: *mut RustBrotliCompressor,
-                                            encoded_size: *mut size_t,
-                                            encoded_buffer: *mut u8) -> c_int;
-    pub fn RustBrotliCompressorCopyInputToRingBuffer(c: *mut RustBrotliCompressor,
-                                                     input_size: size_t,
-                                                     input_buffer: *const u8);
-    pub fn RustBrotliCompressorWriteBrotliData(c: *mut RustBrotliCompressor,
-                                               is_last: c_int,
-                                               force_flush: c_int,
-                                               out_size: *mut size_t,
-                                               output: *mut *mut u8) -> c_int;
+                                              input_buffer: *const u8);
+    pub fn BrotliEncoderWriteData(state: *mut BrotliEncoderState,
+                                  is_last: c_int,
+                                  force_flush: c_int,
+                                  out_size: *mut size_t,
+                                  output: *mut *mut u8)
+                                  -> c_int;
+    pub fn BrotliEncoderSetCustomDictionary(state: *mut BrotliEncoderState,
+                                            size: size_t,
+                                            dict: *const u8);
+    pub fn BrotliEncoderMaxCompressedSize(input_size: size_t) -> size_t;
+    pub fn BrotliEncoderCompress(quality: c_int,
+                                 lgwin: c_int,
+                                 mode: BrotliEncoderMode,
+                                 input_size: size_t,
+                                 input_buffer: *const u8,
+                                 encoded_size: *mut size_t,
+                                 encoded_buffer: *mut u8)
+                                 -> c_int;
+    pub fn BrotliEncoderCompressStream(s: *mut BrotliEncoderState,
+                                       op: BrotliEncoderOperation,
+                                       available_in: *mut size_t,
+                                       next_in: *mut *const u8,
+                                       available_out: *mut size_t,
+                                       next_out: *mut *mut u8,
+                                       total_out: *mut size_t)
+                                       -> c_int;
+    pub fn BrotliEncoderIsFinished(s: *mut BrotliEncoderState) -> c_int;
+    pub fn BrotliEncoderHasMoreOutput(s: *mut BrotliEncoderState) -> c_int;
 }
