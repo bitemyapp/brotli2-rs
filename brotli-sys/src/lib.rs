@@ -227,6 +227,7 @@ pub const BROTLI_OPERATION_FINISH: BrotliEncoderOperation = 2;
 
 pub const BROTLI_DEFAULT_QUALITY: u32 = 11;
 pub const BROTLI_DEFAULT_WINDOW: u32 = 22;
+pub const BROTLI_DEFAULT_MODE: u32 = 0;
 
 pub enum BrotliEncoderState {}
 

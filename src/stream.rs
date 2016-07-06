@@ -34,7 +34,7 @@ unsafe impl Sync for Compress {}
 /// Parameters passed to various compression routines.
 pub struct CompressParams {
     /// Compression mode.
-    mode: CompressMode,
+    mode: u32,
     /// Controls the compression-speed vs compression-density tradeoffs. The higher the `quality`,
     /// the slower the compression. Range is 0 to 11.
     quality: u32,
@@ -49,11 +49,11 @@ pub struct CompressParams {
 pub enum CompressMode {
     /// Default compression mode, the compressor does not know anything in
     /// advance about the properties of the input.
-    Generic,
+    Generic = brotli_sys::BROTLI_MODE_GENERIC as isize,
     /// Compression mode for utf-8 formatted text input.
-    Text,
+    Text = brotli_sys::BROTLI_MODE_TEXT as isize,
     /// Compression mode in WOFF 2.0.
-    Font,
+    Font = brotli_sys::BROTLI_MODE_FONT as isize,
 }
 
 /// Error that can happen from decompressing or compressing a brotli stream.
@@ -373,7 +373,7 @@ impl Compress {
         unsafe {
             brotli_sys::BrotliEncoderSetParameter(self.state,
                                                   brotli_sys::BROTLI_PARAM_MODE,
-                                                  params.mode_as_native() as u32);
+                                                  params.mode);
             brotli_sys::BrotliEncoderSetParameter(self.state,
                                                   brotli_sys::BROTLI_PARAM_QUALITY,
                                                   params.quality);
@@ -409,7 +409,7 @@ pub fn compress_buf(params: &CompressParams,
     let r = unsafe {
         brotli_sys::BrotliEncoderCompress(params.quality as c_int,
                                           params.lgwin as c_int,
-                                          params.mode_as_native(),
+                                          params.mode,
                                           input.len(),
                                           input.as_ptr(),
                                           &mut size,
@@ -427,7 +427,7 @@ impl CompressParams {
     /// Creates a new default set of compression parameters.
     pub fn new() -> CompressParams {
         CompressParams {
-            mode: CompressMode::Generic,
+            mode: brotli_sys::BROTLI_DEFAULT_MODE,
             quality: brotli_sys::BROTLI_DEFAULT_QUALITY,
             lgwin: brotli_sys::BROTLI_DEFAULT_WINDOW,
             lgblock: 0,
@@ -436,7 +436,7 @@ impl CompressParams {
 
     /// Set the mode of this compression.
     pub fn mode(&mut self, mode: CompressMode) -> &mut CompressParams {
-        self.mode = mode;
+        self.mode = mode as u32;
         self
     }
 
@@ -464,14 +464,6 @@ impl CompressParams {
     pub fn lgblock(&mut self, lgblock: u32) -> &mut CompressParams {
         self.lgblock = lgblock;
         self
-    }
-
-    fn mode_as_native(&self) -> brotli_sys::BrotliEncoderMode {
-        match self.mode {
-            CompressMode::Generic => brotli_sys::BROTLI_MODE_GENERIC,
-            CompressMode::Text => brotli_sys::BROTLI_MODE_TEXT,
-            CompressMode::Font => brotli_sys::BROTLI_MODE_FONT,
-        }
     }
 }
 
