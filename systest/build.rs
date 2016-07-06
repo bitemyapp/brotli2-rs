@@ -12,13 +12,10 @@ fn main() {
         cfg.flag("/wd4127"); // allow "conditional expression is constant"
         cfg.flag("/wd4464"); // allow "relative include path contains '..'"
     }
-    cfg.header("command.h")
-       .header("decode.h")
+    cfg.header("decode.h")
        .header("encode.h")
-       .header("hash.h")
-       .header("ringbuffer.h")
-       .header("workaround.h");  // this #includes state.h, first undefining BROTLI_ALLOC and BROTLI_FREE to avoid multiple definition warnings.
-    cfg.include(&dec_include).include(&enc_include).include(".");
+       .header("state.h");
+    cfg.include(&dec_include).include(&enc_include);
     cfg.type_name(|s, _| {
         if s == "BrotliStateStruct" {
             format!("struct BrotliStateStruct")
