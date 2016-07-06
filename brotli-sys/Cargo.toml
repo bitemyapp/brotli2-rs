@@ -1,6 +1,6 @@
 [package]
 name = "brotli-sys"
-version = "0.1.2"
+version = "0.2.0"
 authors = ["Alex Crichton <alex@alexcrichton.com>"]
 build = "build.rs"
 links = "brotli"
@@ -16,6 +16,7 @@ include = [
   "src/*",
   "brotli/enc/*",
   "brotli/dec/*",
+  "brotli/common/*",
   "Cargo.toml",
   "build.rs"
 ]
