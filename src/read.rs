@@ -30,7 +30,7 @@ impl<R: Read> BrotliEncoder<R> {
     }
 
     /// Configure the compression parameters of this encoder.
-    pub fn set_parms(&mut self, params: &CompressParams) {
+    pub fn set_params(&mut self, params: &CompressParams) {
         self.inner.set_params(params);
     }
 
