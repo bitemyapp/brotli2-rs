@@ -319,15 +319,11 @@ impl Compress {
     ///
     /// // An example of compressing `input` into the destination vector
     /// // `output`
-    /// fn compress_vec(mut input: &[u8],
+    /// fn compress_vec(input: &[u8],
     ///                 output: &mut Vec<u8>) -> Result<(), Error> {
-    ///     let mut end_of_input = false;
-    ///     let mut input_pos = 0;
     ///     let mut compress = Compress::new();
-    ///     while input.len() > 0 {
-    ///         let amt = cmp::min(compress.input_block_size(), input.len());
-    ///         compress.copy_input(&input[..amt]);
-    ///         input = &input[amt..];
+    ///     for chunk in input.chunks(compress.input_block_size()) {
+    ///         compress.copy_input(chunk);
     ///         output.extend_from_slice(&try!(compress.compress(false, false)));
     ///     }
     ///     output.extend_from_slice(&try!(compress.compress(true, false)));
