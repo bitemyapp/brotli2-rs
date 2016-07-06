@@ -409,7 +409,7 @@ pub fn compress_buf(params: &CompressParams,
     let r = unsafe {
         brotli_sys::BrotliEncoderCompress(params.quality as c_int,
                                           params.lgwin as c_int,
-                                          params.mode,
+                                          params.mode as brotli_sys::BrotliEncoderMode,
                                           input.len(),
                                           input.as_ptr(),
                                           &mut size,
