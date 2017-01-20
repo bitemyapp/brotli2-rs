@@ -11,6 +11,7 @@ documentation = "http://alexcrichton.com/brotli2-rs"
 description = """
 Raw bindings to libbrotli
 """
+categories = ["external-ffi-bindings"]
 
 include = [
   "src/*",

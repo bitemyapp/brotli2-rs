@@ -10,6 +10,7 @@ documentation = "http://alexcrichton.com/brotli2-rs"
 description = """
 Bindings to libbrotli to provide brotli decompression and compression to Rust
 """
+categories = ["compression"]
 
 [dependencies]
 brotli-sys = { path = "brotli-sys", version = "0.2.0" }
