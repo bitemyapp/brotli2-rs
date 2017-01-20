@@ -23,7 +23,7 @@
 //! ```
 
 #![deny(missing_docs)]
-#![doc(html_root_url = "http://alexcrichton.com/brotli2-rs")]
+#![doc(html_root_url = "https://docs.rs/brotli2/0.2")]
 
 extern crate brotli_sys;
 extern crate libc;

@@ -1,9 +1,9 @@
-# brotli
+# brotli2
 
 [![Build Status](https://travis-ci.org/alexcrichton/brotli2-rs.svg?branch=master)](https://travis-ci.org/alexcrichton/brotli2-rs)
 [![Build status](https://ci.appveyor.com/api/projects/status/j58d3x8p0a8mig0m?svg=true)](https://ci.appveyor.com/project/alexcrichton/brotli-rs)
 
-[Documentation](http://alexcrichton.com/brotli2-rs)
+[Documentation](https://docs.rs/brotli2)
 
 Bindings to the official [brotli] implementation in Rust.
 
@@ -12,7 +12,7 @@ Bindings to the official [brotli] implementation in Rust.
 ```toml
 # Cargo.toml
 [dependencies]
-brotli = "0.1"
+brotli2 = "0.1"
 ```
 
 # License
