@@ -37,7 +37,7 @@ impl<R: BufRead> BrotliEncoder<R> {
         let mut data = Compress::new();
         data.set_params(CompressParams::new().quality(level));
         BrotliEncoder {
-            buf: Cursor::new(Vec::with_capacity(data.get_lgwin())),
+            buf: Cursor::new(Vec::new()),
             obj: r,
             max: data.input_block_size(),
             cur: 0,
@@ -51,7 +51,7 @@ impl<R: BufRead> BrotliEncoder<R> {
         let mut data = Compress::new();
         data.set_params(params);
         BrotliEncoder {
-            buf: Cursor::new(Vec::with_capacity(data.get_lgwin())),
+            buf: Cursor::new(Vec::with_capacity(params.get_lgwin())),
             obj: r,
             max: data.input_block_size(),
             cur: 0,
