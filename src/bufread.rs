@@ -37,18 +37,27 @@ impl<R: BufRead> BrotliEncoder<R> {
         let mut data = Compress::new();
         data.set_params(CompressParams::new().quality(level));
         BrotliEncoder {
+            buf: Cursor::new(Vec::with_capacity(data.get_lgwin())),
             obj: r,
             max: data.input_block_size(),
             cur: 0,
             data: data,
-            buf: Cursor::new(Vec::new()),
             done: false,
         }
     }
 
     /// Creates a new encoder with a custom `CompressParams`.
-    pub fn set_params(&mut self, params: &CompressParams) {
-        self.data.set_params(params);
+    pub fn from_params(r: R, params: &CompressParams) -> BrotliEncoder<R> {
+        let mut data = Compress::new();
+        data.set_params(params);
+        BrotliEncoder {
+            buf: Cursor::new(Vec::with_capacity(data.get_lgwin())),
+            obj: r,
+            max: data.input_block_size(),
+            cur: 0,
+            data: data,
+            done: false,
+        }
     }
 
     /// Acquires a reference to the underlying stream

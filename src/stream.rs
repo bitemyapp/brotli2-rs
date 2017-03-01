@@ -465,6 +465,15 @@ impl CompressParams {
         self.lgblock = lgblock;
         self
     }
+
+    /// Get the current block size
+    pub fn get_lgblock(&self) -> usize {
+        1usize << self.lgblock
+    }
+    /// Get the current window size
+    pub fn get_lgwin(&self) -> usize {
+        1usize << self.lgwin
+    }
 }
 
 impl fmt::Display for Error {
