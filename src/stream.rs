@@ -470,12 +470,25 @@ impl CompressParams {
     }
 
     /// Get the current block size
-    pub fn get_lgblock(&self) -> usize {
+    #[inline]
+    pub fn get_lgblock_readable(&self) -> usize {
         1usize << self.lgblock
     }
+
+    /// Get the native lgblock size
+    #[inline]
+    pub fn get_lgblock(&self) -> u32 {
+        self.lgblock.clone()
+    }
     /// Get the current window size
-    pub fn get_lgwin(&self) -> usize {
+    #[inline]
+    pub fn get_lgwin_readable(&self) -> usize {
         1usize << self.lgwin
+    }
+    /// Get the native lgwin value
+    #[inline]
+    pub fn get_lgwin(&self) -> u32 {
+        self.lgwin.clone()
     }
 }
 

@@ -33,7 +33,7 @@ impl<R: Read> BrotliEncoder<R> {
     pub fn from_params( r: R, params: &CompressParams) -> BrotliEncoder<R> {
         BrotliEncoder{
             inner: bufread::BrotliEncoder::from_params(
-                BufReader::with_capacity(params.get_lgwin(),r), params)
+                BufReader::with_capacity(params.get_lgwin_readable(),r), params)
         }
     }
 
