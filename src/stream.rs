@@ -32,6 +32,7 @@ unsafe impl Send for Compress {}
 unsafe impl Sync for Compress {}
 
 /// Parameters passed to various compression routines.
+#[derive(Clone,Debug)]
 pub struct CompressParams {
     /// Compression mode.
     mode: u32,
@@ -46,6 +47,8 @@ pub struct CompressParams {
 }
 
 /// Possible choices for modes of compression
+#[repr(isize)]
+#[derive(Copy,Clone,Debug)]
 pub enum CompressMode {
     /// Default compression mode, the compressor does not know anything in
     /// advance about the properties of the input.
