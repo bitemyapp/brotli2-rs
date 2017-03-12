@@ -30,8 +30,11 @@ impl<R: Read> BrotliEncoder<R> {
     }
 
     /// Configure the compression parameters of this encoder.
-    pub fn set_params(&mut self, params: &CompressParams) {
-        self.inner.set_params(params);
+    pub fn from_params( r: R, params: &CompressParams) -> BrotliEncoder<R> {
+        BrotliEncoder{
+            inner: bufread::BrotliEncoder::from_params(
+                BufReader::with_capacity(params.get_lgwin_readable(),r), params)
+        }
     }
 
     /// Acquires a reference to the underlying stream

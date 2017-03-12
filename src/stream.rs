@@ -32,6 +32,7 @@ unsafe impl Send for Compress {}
 unsafe impl Sync for Compress {}
 
 /// Parameters passed to various compression routines.
+#[derive(Clone,Debug)]
 pub struct CompressParams {
     /// Compression mode.
     mode: u32,
@@ -46,6 +47,8 @@ pub struct CompressParams {
 }
 
 /// Possible choices for modes of compression
+#[repr(isize)]
+#[derive(Copy,Clone,Debug)]
 pub enum CompressMode {
     /// Default compression mode, the compressor does not know anything in
     /// advance about the properties of the input.
@@ -464,6 +467,28 @@ impl CompressParams {
     pub fn lgblock(&mut self, lgblock: u32) -> &mut CompressParams {
         self.lgblock = lgblock;
         self
+    }
+
+    /// Get the current block size
+    #[inline]
+    pub fn get_lgblock_readable(&self) -> usize {
+        1usize << self.lgblock
+    }
+
+    /// Get the native lgblock size
+    #[inline]
+    pub fn get_lgblock(&self) -> u32 {
+        self.lgblock.clone()
+    }
+    /// Get the current window size
+    #[inline]
+    pub fn get_lgwin_readable(&self) -> usize {
+        1usize << self.lgwin
+    }
+    /// Get the native lgwin value
+    #[inline]
+    pub fn get_lgwin(&self) -> u32 {
+        self.lgwin.clone()
     }
 }
 

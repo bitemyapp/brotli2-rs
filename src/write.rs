@@ -38,8 +38,15 @@ impl<W: Write> BrotliEncoder<W> {
     }
 
     /// Creates a new encoder with a custom `CompressParams`.
-    pub fn set_params(&mut self, params: &CompressParams) {
-        self.data.set_params(params);
+    pub fn from_params(obj: W, params: &CompressParams) -> BrotliEncoder<W> {
+        let mut data = Compress::new();
+        data.set_params(params);
+        BrotliEncoder {
+            max: data.input_block_size(),
+            cur: 0,
+            data: data,
+            obj: Some(obj)
+        }
     }
 
 
