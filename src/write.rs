@@ -117,7 +117,7 @@ impl<W: Write> BrotliDecoder<W> {
             try!(self.dump());
             let res = try!(self.data.decompress_vec(&mut &[][..],
                                                     &mut self.buf));
-            if res == Status::Finished {
+            if res == Status::Finished || res == Status::NeedInput {
                 break
             }
 
