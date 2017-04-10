@@ -118,9 +118,11 @@ impl<W: Write> BrotliDecoder<W> {
             let res = try!(self.data.decompress_vec(&mut &[][..],
                                                     &mut self.buf));
             // When decoding a truncated file, brotli returns Status::NeedInput.
-            // Since we're finishing, we cannot provide more data so this is an error. 
+            // Since we're finishing, we cannot provide more data so this is an
+            // error.
             if res == Status::NeedInput {
-                return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "brotli compressed stream is truncated or otherwise corrupt"));
+                let msg = "brotli compressed stream is truncated or otherwise corrupt";
+                return Err(io::Error::new(io::ErrorKind::UnexpectedEof, msg))
             }
             if res == Status::Finished {
                 break

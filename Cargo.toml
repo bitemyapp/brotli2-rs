@@ -19,4 +19,3 @@ libc = "0.2"
 [dev-dependencies]
 rand = "0.3"
 quickcheck = "0.2"
-timebomb = "0.1"
