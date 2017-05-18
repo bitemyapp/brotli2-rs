@@ -14,7 +14,7 @@ use libc::c_int;
 /// This stream is at the heart of the I/O streams and is used to decompress an
 /// incoming brotli stream.
 pub struct Decompress {
-    state: *mut brotli_sys::BrotliState,
+    state: *mut brotli_sys::BrotliDecoderState,
 }
 
 unsafe impl Send for Decompress {}
@@ -79,7 +79,7 @@ impl Decompress {
     /// data.
     pub fn new() -> Decompress {
         unsafe {
-            let state = brotli_sys::BrotliCreateState(None, None, 0 as *mut _);
+            let state = brotli_sys::BrotliDecoderCreateInstance(None, None, 0 as *mut _);
             assert!(!state.is_null());
             Decompress { state: state }
         }
@@ -109,12 +109,12 @@ impl Decompress {
         let mut next_out = output.as_mut_ptr();
         let mut total_out = 0;
         let r = unsafe {
-            brotli_sys::BrotliDecompressStream(&mut available_in,
-                                               &mut next_in,
-                                               &mut available_out,
-                                               &mut next_out,
-                                               &mut total_out,
-                                               self.state)
+            brotli_sys::BrotliDecoderDecompressStream(self.state,
+                                                      &mut available_in,
+                                                      &mut next_in,
+                                                      &mut available_out,
+                                                      &mut next_out,
+                                                      &mut total_out)
         };
         *input = &input[input.len() - available_in..];
         let out_len = output.len();
@@ -146,12 +146,14 @@ impl Decompress {
         }
     }
 
-    fn rc(rc: brotli_sys::BrotliResult) -> Result<Status, Error> {
+    fn rc(rc: brotli_sys::BrotliDecoderResult) -> Result<Status, Error> {
         match rc {
-            brotli_sys::BROTLI_RESULT_ERROR => Err(Error(())),
-            brotli_sys::BROTLI_RESULT_SUCCESS => Ok(Status::Finished),
-            brotli_sys::BROTLI_RESULT_NEEDS_MORE_INPUT => Ok(Status::NeedInput),
-            brotli_sys::BROTLI_RESULT_NEEDS_MORE_OUTPUT => Ok(Status::NeedOutput),
+            // TODO: get info from BrotliDecoderGetErrorCode/BrotliDecoderErrorString
+            // for these decode errors
+            brotli_sys::BROTLI_DECODER_RESULT_ERROR => Err(Error(())),
+            brotli_sys::BROTLI_DECODER_RESULT_SUCCESS => Ok(Status::Finished),
+            brotli_sys::BROTLI_DECODER_RESULT_NEEDS_MORE_INPUT => Ok(Status::NeedInput),
+            brotli_sys::BROTLI_DECODER_RESULT_NEEDS_MORE_OUTPUT => Ok(Status::NeedOutput),
             n => panic!("unknown return code: {}", n)
         }
     }
@@ -160,27 +162,8 @@ impl Decompress {
 impl Drop for Decompress {
     fn drop(&mut self) {
         unsafe {
-            brotli_sys::BrotliDestroyState(self.state);
+            brotli_sys::BrotliDecoderDestroyInstance(self.state);
         }
-    }
-}
-
-/// Returns the decompressed size of the given encoded stream.
-///
-/// This function only works if the encoded buffer has a single meta block,
-/// or if it has two meta-blocks, where the first is uncompressed and the
-/// second is empty.
-pub fn decompressed_size(data: &[u8]) -> Result<usize, Error> {
-    let mut size = 0;
-    let ret = unsafe {
-        brotli_sys::BrotliDecompressedSize(data.len(),
-                                           data.as_ptr(),
-                                           &mut size)
-    };
-    if ret == 0 {
-        Err(Error(()))
-    } else {
-        Ok(size)
     }
 }
 
@@ -192,10 +175,10 @@ pub fn decompress_buf(input: &[u8],
                       output: &mut &mut [u8]) -> Result<usize, Error> {
     let mut size = output.len();
     let r = unsafe {
-        brotli_sys::BrotliDecompressBuffer(input.len(),
-                                           input.as_ptr(),
-                                           &mut size,
-                                           output.as_mut_ptr())
+        brotli_sys::BrotliDecoderDecompress(input.len(),
+                                            input.as_ptr(),
+                                            &mut size,
+                                            output.as_mut_ptr())
     };
     *output = &mut mem::replace(output, &mut [])[..size];
     if r == 0 {
@@ -225,70 +208,8 @@ impl Compress {
         unsafe { brotli_sys::BrotliEncoderInputBlockSize(self.state) }
     }
 
-    // Apparently this is just a shim around CopyInputToRingBuffer,
-    // WriteBrotliData, and then finally a memcpy?
-    //
-    // #[allow(dead_code)]
-    // fn write_metablock(&mut self,
-    //                    input: &[u8],
-    //                    last: bool,
-    //                    encoded: &mut [u8]) -> Result<usize, Error> {
-    //     let mut size = encoded.len();
-    //     let r = unsafe {
-    //         brotli_sys::RustBrotliCompressorWriteMetaBlock(self.state,
-    //                                                        input.len(),
-    //                                                        input.as_ptr(),
-    //                                                        last as c_int,
-    //                                                        &mut size,
-    //                                                        encoded.as_mut_ptr())
-    //     };
-    //     if r == 0 {
-    //         Err(Error(()))
-    //     } else {
-    //         Ok(size)
-    //     }
-    // }
-
-    // Maybe someone will eventually come up with a use for this?
-    //
-    // #[allow(dead_code)]
-    // fn write_metadata(&mut self,
-    //                   input: &[u8],
-    //                   last: bool,
-    //                   encoded: &mut [u8]) -> Result<usize, Error> {
-    //     let mut size = encoded.len();
-    //     let r = unsafe {
-    //         brotli_sys::RustBrotliCompressorWriteMetadata(self.state,
-    //                                                       input.len(),
-    //                                                       input.as_ptr(),
-    //                                                       last as c_int,
-    //                                                       &mut size,
-    //                                                       encoded.as_mut_ptr())
-    //     };
-    //     if r == 0 {
-    //         Err(Error(()))
-    //     } else {
-    //         Ok(size)
-    //     }
-    // }
-
-    // This is just a shim around WriteMetaBlock, which is in turn just a shim
-    // around WriteBrotliData, so let's just delegate there I guess?
-    //
-    // #[allow(dead_code)]
-    // fn finish_stream(&mut self, output: &mut [u8]) -> Result<usize, Error> {
-    //     let mut size = output.len();
-    //     let r = unsafe {
-    //         brotli_sys::RustBrotliCompressorFinishStream(self.state,
-    //                                                      &mut size,
-    //                                                      output.as_mut_ptr())
-    //     };
-    //     if r == 0 {
-    //         Err(Error(()))
-    //     } else {
-    //         Ok(size)
-    //     }
-    // }
+    // TODO: add the BrotliEncoderOperation variants of
+    // BrotliEncoderCompressStream here
 
     /// Feeds data into this compressor.
     ///
@@ -390,6 +311,13 @@ impl Compress {
             brotli_sys::BrotliEncoderSetParameter(self.state,
                                                   brotli_sys::BROTLI_PARAM_LGBLOCK,
                                                   params.lgblock);
+            // TODO: add these two
+            // brotli_sys::BrotliEncoderSetParameter(self.state,
+            //                                       brotli_sys::BROTLI_PARAM_DISABLE_LITERAL_CONTEXT_MODELING,
+            //                                       params.lgblock);
+            // brotli_sys::BrotliEncoderSetParameter(self.state,
+            //                                       brotli_sys::BROTLI_PARAM_SIZE_HINT,
+            //                                       params.lgblock);
         }
     }
 }
@@ -529,7 +457,6 @@ mod tests {
         let mut data = [0; 128];
         let mut data = &mut data[..];
         compress_buf(&CompressParams::new(), b"hello!", &mut data).unwrap();
-        assert_eq!(decompressed_size(data), Ok(6));
 
         let mut dst = [0; 128];
         {
