@@ -129,17 +129,17 @@ extern "C" {
                                        opaque: *mut c_void)
                                        -> *mut BrotliEncoderState;
     pub fn BrotliEncoderDestroyInstance(state: *mut BrotliEncoderState);
-    // Next three are deprecated, but we use them
-    pub fn BrotliEncoderInputBlockSize(state: *mut BrotliEncoderState) -> size_t;
-    pub fn BrotliEncoderCopyInputToRingBuffer(state: *mut BrotliEncoderState,
-                                              input_size: size_t,
-                                              input_buffer: *const u8);
-    pub fn BrotliEncoderWriteData(state: *mut BrotliEncoderState,
-                                  is_last: c_int,
-                                  force_flush: c_int,
-                                  out_size: *mut size_t,
-                                  output: *mut *mut u8)
-                                  -> c_int;
+    // These three are deprecated
+    //pub fn BrotliEncoderInputBlockSize(state: *mut BrotliEncoderState) -> size_t;
+    //pub fn BrotliEncoderCopyInputToRingBuffer(state: *mut BrotliEncoderState,
+    //                                          input_size: size_t,
+    //                                          input_buffer: *const u8);
+    //pub fn BrotliEncoderWriteData(state: *mut BrotliEncoderState,
+    //                              is_last: c_int,
+    //                              force_flush: c_int,
+    //                              out_size: *mut size_t,
+    //                              output: *mut *mut u8)
+    //                              -> c_int;
     pub fn BrotliEncoderSetCustomDictionary(state: *mut BrotliEncoderState,
                                             size: size_t,
                                             dict: *const u8);
