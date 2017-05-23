@@ -187,9 +187,9 @@ pub fn decompressed_size(data: &[u8]) -> Result<usize, Error> {
 /// Decompress data in one go in memory.
 ///
 /// Decompresses the data in `input` into the `output` buffer. The `output`
-/// buffer is updated to point to the actual output slice if successful
+/// buffer is updated to point to the actual output slice if successful.
 pub fn decompress_buf(input: &[u8],
-                      output: &mut &mut [u8]) -> Result<Status, Error> {
+                      output: &mut &mut [u8]) -> Result<usize, Error> {
     let mut size = output.len();
     let r = unsafe {
         brotli_sys::BrotliDecompressBuffer(input.len(),
@@ -198,7 +198,11 @@ pub fn decompress_buf(input: &[u8],
                                            output.as_mut_ptr())
     };
     *output = &mut mem::replace(output, &mut [])[..size];
-    Decompress::rc(r)
+    if r == 0 {
+        Err(Error(()))
+    } else {
+        Ok(size)
+    }
 }
 
 impl Compress {
@@ -531,7 +535,7 @@ mod tests {
         {
             let mut dst = &mut dst[..];
             let n = decompress_buf(data, &mut dst).unwrap();
-            assert_eq!(n, Status::Finished);
+            assert_eq!(n, dst.len());
             assert_eq!(dst.len(), 6);
         }
         assert_eq!(&dst[..6], b"hello!");
