@@ -4,6 +4,7 @@ use std::error;
 use std::fmt;
 use std::io;
 use std::mem;
+use std::ptr;
 use std::slice;
 
 use brotli_sys;
@@ -143,14 +144,13 @@ impl Decompress {
         let mut next_in = input.as_ptr();
         let mut available_out = output.len();
         let mut next_out = output.as_mut_ptr();
-        let mut total_out = 0;
         let r = unsafe {
             brotli_sys::BrotliDecoderDecompressStream(self.state,
                                                       &mut available_in,
                                                       &mut next_in,
                                                       &mut available_out,
                                                       &mut next_out,
-                                                      &mut total_out)
+                                                      ptr::null_mut())
         };
         *input = &input[input.len() - available_in..];
         let out_len = output.len();
@@ -200,7 +200,9 @@ impl Drop for Decompress {
 /// Decompress data in one go in memory.
 ///
 /// Decompresses the data in `input` into the `output` buffer. The `output`
-/// buffer is updated to point to the actual output slice if successful.
+/// buffer is updated to point to the actual output slice if successful, or
+/// an error is returned. The output buffer being too small is considered
+/// to be an error.
 pub fn decompress_buf(input: &[u8],
                       output: &mut &mut [u8]) -> Result<usize, Error> {
     let mut size = output.len();
@@ -304,7 +306,6 @@ impl Compress {
         let mut next_in = input.as_ptr();
         let mut available_out = output.len();
         let mut next_out = output.as_mut_ptr();
-        let mut total_out = 0;
         let r = unsafe {
             brotli_sys::BrotliEncoderCompressStream(self.state,
                                                     op as brotli_sys::BrotliEncoderOperation,
@@ -312,7 +313,7 @@ impl Compress {
                                                     &mut next_in,
                                                     &mut available_out,
                                                     &mut next_out,
-                                                    &mut total_out)
+                                                    ptr::null_mut())
         };
         *input = &input[input.len() - available_in..];
         let out_len = output.len();
@@ -393,7 +394,8 @@ impl Drop for Compress {
 /// the output data.
 ///
 /// If successful, the amount of compressed bytes are returned (the size of the
-/// `output` slice), and otherwise an error is returned.
+/// `output` slice), or an error is returned. The output buffer being too small
+/// is considered to be an error.
 pub fn compress_buf(params: &CompressParams,
                     input: &[u8],
                     output: &mut &mut [u8]) -> Result<usize, Error> {
