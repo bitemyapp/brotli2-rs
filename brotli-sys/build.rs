@@ -11,22 +11,24 @@ fn main() {
     }
 
     let src = env::current_dir().unwrap();
-    println!("cargo:dec_include={}", src.join("brotli/dec").display());
-    println!("cargo:enc_include={}", src.join("brotli/enc").display());
+    println!("cargo:include={}", src.join("brotli/include").display());
 
     gcc::Config::new()
+        .include("brotli/include")
         .file("brotli/common/dictionary.c")
         .file("brotli/dec/bit_reader.c")
         .file("brotli/dec/decode.c")
         .file("brotli/dec/huffman.c")
         .file("brotli/dec/state.c")
         .file("brotli/enc/backward_references.c")
+        .file("brotli/enc/backward_references_hq.c")
         .file("brotli/enc/bit_cost.c")
         .file("brotli/enc/block_splitter.c")
         .file("brotli/enc/brotli_bit_stream.c")
         .file("brotli/enc/cluster.c")
         .file("brotli/enc/compress_fragment.c")
         .file("brotli/enc/compress_fragment_two_pass.c")
+        .file("brotli/enc/dictionary_hash.c")
         .file("brotli/enc/encode.c")
         .file("brotli/enc/entropy_encode.c")
         .file("brotli/enc/histogram.c")
