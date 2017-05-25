@@ -68,7 +68,13 @@ impl<W: Write> BrotliEncoder<W> {
             }
             // TODO: if we could peek, the buffer wouldn't be necessary
             if let Some(data) = self.data.take_output(Some(BUF_SIZE)) {
-                self.buf.extend_from_slice(data)
+                match self.obj.as_mut().unwrap().write(data) {
+                    Ok(n) => self.buf.extend_from_slice(&data[n..]),
+                    Err(e) => {
+                        self.buf.extend_from_slice(data);
+                        return Err(e)
+                    }
+                }
             } else {
                 break
             }
