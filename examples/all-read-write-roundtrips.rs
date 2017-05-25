@@ -4,7 +4,8 @@ extern crate rand;
 use std::io::{Read, Write};
 use brotli2::read;
 use brotli2::write;
-use brotli2::stream::{CompressParams, compress_buf, decompress_buf};
+use brotli2::CompressParams;
+use brotli2::raw::{compress_buf, decompress_buf};
 use rand::Rng;
 use rand::SeedableRng;
 

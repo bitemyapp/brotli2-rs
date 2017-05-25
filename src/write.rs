@@ -3,7 +3,9 @@
 use std::io::prelude::*;
 use std::io;
 
-use stream::{self, Decompress, DeStatus, Compress, CompressOp, CoStatus, CompressParams};
+use raw::{self, Decompress, DeStatus, Compress, CompressOp, CoStatus};
+
+use super::CompressParams;
 
 const BUF_SIZE: usize = 32 * 1024;
 
@@ -14,7 +16,7 @@ pub struct BrotliEncoder<W: Write> {
     obj: Option<W>,
     buf: Vec<u8>,
     cur: usize,
-    err: Option<stream::Error>,
+    err: Option<raw::Error>,
 }
 
 /// A compression stream which will have compressed data written to it and
@@ -24,7 +26,7 @@ pub struct BrotliDecoder<W: Write> {
     obj: Option<W>,
     buf: Vec<u8>,
     cur: usize,
-    err: Option<stream::Error>,
+    err: Option<raw::Error>,
 }
 
 impl<W: Write> BrotliEncoder<W> {

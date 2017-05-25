@@ -3,8 +3,9 @@
 use std::io::prelude::*;
 use std::io::{self, BufReader};
 
-use stream::CompressParams;
 use bufread;
+
+use super::CompressParams;
 
 /// A compression stream which wraps an uncompressed stream of data. Compressed
 /// data will be read from the stream.

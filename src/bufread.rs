@@ -3,7 +3,8 @@
 use std::io::prelude::*;
 use std::io;
 
-use stream::{self, Decompress, DeStatus, Compress, CompressOp, CompressParams, CoStatus};
+use super::CompressParams;
+use raw::{self, Decompress, DeStatus, Compress, CompressOp, CoStatus};
 
 #[derive(Clone, Copy, Eq, PartialEq)]
 enum DoneStatus {
@@ -20,7 +21,7 @@ pub struct BrotliEncoder<R: BufRead> {
     obj: R,
     data: Compress,
     done: DoneStatus,
-    err: Option<stream::Error>,
+    err: Option<raw::Error>,
 }
 
 /// A brotli decoder, or decompressor.
@@ -30,7 +31,7 @@ pub struct BrotliEncoder<R: BufRead> {
 pub struct BrotliDecoder<R: BufRead> {
     obj: R,
     data: Decompress,
-    err: Option<stream::Error>,
+    err: Option<raw::Error>,
 }
 
 impl<R: BufRead> BrotliEncoder<R> {
