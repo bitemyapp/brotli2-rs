@@ -14,4 +14,5 @@ build: false
 
 test_script:
   - cargo test --target %TARGET%
+  - cargo run --example all-read-write-roundtrips --release --target %TARGET%
   - cargo run --manifest-path systest/Cargo.toml --target %TARGET%
