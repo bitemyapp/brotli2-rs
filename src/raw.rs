@@ -1,13 +1,16 @@
-//! In-memory compression/decompression streams
+//! Raw interface to in-memory compression/decompression streams
 
 use std::error;
 use std::fmt;
 use std::io;
 use std::mem;
+use std::ptr;
 use std::slice;
 
 use brotli_sys;
 use libc::c_int;
+
+use super::CompressParams;
 
 /// In-memory state for decompressing brotli-encoded data.
 ///
@@ -31,41 +34,49 @@ pub struct Compress {
 unsafe impl Send for Compress {}
 unsafe impl Sync for Compress {}
 
-/// Parameters passed to various compression routines.
-#[derive(Clone,Debug)]
-pub struct CompressParams {
-    /// Compression mode.
-    mode: u32,
-    /// Controls the compression-speed vs compression-density tradeoffs. The higher the `quality`,
-    /// the slower the compression. Range is 0 to 11.
-    quality: u32,
-    /// Base 2 logarithm of the sliding window size. Range is 10 to 24.
-    lgwin: u32,
-    /// Base 2 logarithm of the maximum input block size. Range is 16 to 24. If set to 0, the value
-    /// will be set based on the quality.
-    lgblock: u32,
-}
-
-/// Possible choices for modes of compression
+/// Possible choices for the operation performed by the compressor.
+///
+/// When using any operation except `Process`, you must *not* alter the
+/// input buffer or use a different operation until the current operation
+/// has 'completed'. An operation may need to be repeated with more space to
+/// write data until it can complete.
 #[repr(isize)]
-#[derive(Copy,Clone,Debug)]
-pub enum CompressMode {
-    /// Default compression mode, the compressor does not know anything in
-    /// advance about the properties of the input.
-    Generic = brotli_sys::BROTLI_MODE_GENERIC as isize,
-    /// Compression mode for utf-8 formatted text input.
-    Text = brotli_sys::BROTLI_MODE_TEXT as isize,
-    /// Compression mode in WOFF 2.0.
-    Font = brotli_sys::BROTLI_MODE_FONT as isize,
+#[derive(Copy,Clone,Debug,PartialEq,Eq)]
+pub enum CompressOp {
+    /// Compress input data
+    Process = brotli_sys::BROTLI_OPERATION_PROCESS as isize,
+    /// Compress input data, ensuring that all input so far has been
+    /// written out
+    Flush = brotli_sys::BROTLI_OPERATION_FLUSH as isize,
+    /// Compress input data, ensuring that all input so far has been
+    /// written out and then finalizing the stream so no more data can
+    /// be written
+    Finish = brotli_sys::BROTLI_OPERATION_FINISH as isize,
+    /// Emit a metadata block to the stream, an opaque piece of out-of-band
+    /// data that does not interfere with the main stream of data. Metadata
+    /// blocks *must* be no longer than 16MiB
+    EmitMetadata = brotli_sys::BROTLI_OPERATION_EMIT_METADATA as isize,
 }
 
 /// Error that can happen from decompressing or compressing a brotli stream.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Error(());
 
-/// Possible status results returned from compressing or decompressing.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum Status {
+/// Indication of whether a compression operation is 'complete'. This does
+/// not indicate whether the whole stream is complete - see `Compress::compress`
+/// for details.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CoStatus {
+    /// The operation completed successfully
+    Finished,
+    /// The operation has more work to do and needs to be called again with the
+    /// same buffer
+    Unfinished,
+}
+
+/// Possible status results returned from decompressing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DeStatus {
     /// Decompression was successful and has finished
     Finished,
     /// More input is needed to continue
@@ -85,7 +96,7 @@ impl Decompress {
         }
     }
 
-    /// Decompress a block of input data into a block of output data.
+    /// Decompress some input data and write it to a buffer of output data.
     ///
     /// This function will decompress the data in `input` and place the output
     /// in `output`, returning the result. Possible statuses that can be
@@ -102,19 +113,18 @@ impl Decompress {
     /// returned.
     pub fn decompress(&mut self,
                       input: &mut &[u8],
-                      output: &mut &mut [u8]) -> Result<Status, Error> {
+                      output: &mut &mut [u8]) -> Result<DeStatus, Error> {
         let mut available_in = input.len();
         let mut next_in = input.as_ptr();
         let mut available_out = output.len();
         let mut next_out = output.as_mut_ptr();
-        let mut total_out = 0;
         let r = unsafe {
             brotli_sys::BrotliDecoderDecompressStream(self.state,
                                                       &mut available_in,
                                                       &mut next_in,
                                                       &mut available_out,
                                                       &mut next_out,
-                                                      &mut total_out)
+                                                      ptr::null_mut())
         };
         *input = &input[input.len() - available_in..];
         let out_len = output.len();
@@ -122,38 +132,32 @@ impl Decompress {
         Decompress::rc(r)
     }
 
-    /// Decompress a block of input data into the remaining capacity of a
-    /// vector.
-    ///
-    /// This function is the same as `decompress` except that it will fill up
-    /// the remaining capacity in a destination vector and update the length as
-    /// necessary.
-    pub fn decompress_vec(&mut self,
-                          input: &mut &[u8],
-                          output: &mut Vec<u8>) -> Result<Status, Error> {
-        let cap = output.capacity();
-        let len = output.len();
-
+    /// Retrieve a slice of the internal decompressor buffer up to `size_limit` in length
+    /// (unlimited length if `None`), consuming it. As the internal buffer may not be
+    /// contiguous, consecutive calls may return more output until this function returns
+    /// `None`.
+    pub fn take_output(&mut self, size_limit: Option<usize>) -> Option<&[u8]> {
+        if let Some(0) = size_limit { return None }
+        let mut size_limit = size_limit.unwrap_or(0); // 0 now means unlimited
         unsafe {
-            let (ret, remaining) = {
-                let ptr = output.as_mut_ptr().offset(len as isize);
-                let mut out = slice::from_raw_parts_mut(ptr, cap - len);
-                let r = self.decompress(input, &mut out);
-                (r, out.len())
-            };
-            output.set_len(cap - remaining);
-            return ret
+            let ptr = brotli_sys::BrotliDecoderTakeOutput(self.state, &mut size_limit);
+            if size_limit == 0 { // ptr may or may not be null
+                None
+            } else {
+                assert!(!ptr.is_null());
+                Some(slice::from_raw_parts(ptr, size_limit))
+            }
         }
     }
 
-    fn rc(rc: brotli_sys::BrotliDecoderResult) -> Result<Status, Error> {
+    fn rc(rc: brotli_sys::BrotliDecoderResult) -> Result<DeStatus, Error> {
         match rc {
             // TODO: get info from BrotliDecoderGetErrorCode/BrotliDecoderErrorString
             // for these decode errors
             brotli_sys::BROTLI_DECODER_RESULT_ERROR => Err(Error(())),
-            brotli_sys::BROTLI_DECODER_RESULT_SUCCESS => Ok(Status::Finished),
-            brotli_sys::BROTLI_DECODER_RESULT_NEEDS_MORE_INPUT => Ok(Status::NeedInput),
-            brotli_sys::BROTLI_DECODER_RESULT_NEEDS_MORE_OUTPUT => Ok(Status::NeedOutput),
+            brotli_sys::BROTLI_DECODER_RESULT_SUCCESS => Ok(DeStatus::Finished),
+            brotli_sys::BROTLI_DECODER_RESULT_NEEDS_MORE_INPUT => Ok(DeStatus::NeedInput),
+            brotli_sys::BROTLI_DECODER_RESULT_NEEDS_MORE_OUTPUT => Ok(DeStatus::NeedOutput),
             n => panic!("unknown return code: {}", n)
         }
     }
@@ -170,7 +174,9 @@ impl Drop for Decompress {
 /// Decompress data in one go in memory.
 ///
 /// Decompresses the data in `input` into the `output` buffer. The `output`
-/// buffer is updated to point to the actual output slice if successful.
+/// buffer is updated to point to the actual output slice if successful, or
+/// an error is returned. The output buffer being too small is considered
+/// to be an error.
 pub fn decompress_buf(input: &[u8],
                       output: &mut &mut [u8]) -> Result<usize, Error> {
     let mut size = output.len();
@@ -199,62 +205,56 @@ impl Compress {
         }
     }
 
-    /// Returns the maximum amount of data that can be internally buffered to
-    /// get processed at once.
-    ///
-    /// Data is fed into this compressor via the `copy_input` function, and then
-    /// it's later compressed via the `write_brotli_data` function.
-    pub fn input_block_size(&self) -> usize {
-        unsafe { brotli_sys::BrotliEncoderInputBlockSize(self.state) }
-    }
-
     // TODO: add the BrotliEncoderOperation variants of
     // BrotliEncoderCompressStream here
 
-    /// Feeds data into this compressor.
+    /// Pass some input data to the compressor and write it to a buffer of
+    /// output data, compressing or otherwise handling it as instructed by
+    /// the specified operation.
     ///
-    /// This compressor can store up to `self.input_block_size()` bytes
-    /// internally after which the `compress` call must be made to generate all
-    /// output of the compressor.
+    /// This function will handle the data in `input` and place the output
+    /// in `output`, returning the Result. Possible statuses are that the
+    /// operation is complete or incomplete.
     ///
-    /// If too much data is copied in then the next call to `compress` will
-    /// generate an error.
-    pub fn copy_input(&mut self, input: &[u8]) {
-        unsafe {
-            brotli_sys::BrotliEncoderCopyInputToRingBuffer(self.state,
-                                                           input.len(),
-                                                           input.as_ptr())
-        }
-    }
-
-    /// Compresses the internal data in this compressor, returning the output
-    /// buffer of the compressed data.
+    /// The `input` slice is updated to point to the remaining data that was not
+    /// consumed, and the `output` slice is updated to point to the portion of
+    /// the output slice that still needs to be filled in.
     ///
-    /// After data has been fed to this compressor via the `copy_input` method,
-    /// the data is then compressed by calling this method. The `last` flag
-    /// indicates whether this is the last block of the input (it should only
-    /// get passed on EOF), and the `force_flush` flag indicates whether a new
-    /// meta-block should be created to flush the internal data.
+    /// If the result of a compress operation is `Unfinished` (which it may be
+    /// for any operation except `Process`), you *must* call the operation again
+    /// with the same operation and input buffer and more space to output to.
+    /// `Process` will never return `Unfinished`, but it is a logic error to end
+    /// a buffer without calling either `Flush` or `Finish` as some output data
+    /// may not have been written.
     ///
-    /// Returns an error, if any, and otherwise the internal buffer which
-    /// contains the output data of compressed information.
+    /// # Errors
+    ///
+    /// Returns an error if brotli encountered an error while processing the stream.
     ///
     /// # Examples
     ///
     /// ```
-    /// use std::cmp;
-    /// use brotli2::stream::{Error, Compress, decompress_buf};
+    /// use brotli2::raw::{Error, Compress, CompressOp, CoStatus, decompress_buf};
     ///
     /// // An example of compressing `input` into the destination vector
-    /// // `output`
-    /// fn compress_vec(input: &[u8],
+    /// // `output`, expanding as necessary
+    /// fn compress_vec(mut input: &[u8],
     ///                 output: &mut Vec<u8>) -> Result<(), Error> {
     ///     let mut compress = Compress::new();
-    ///     for chunk in input.chunks(compress.input_block_size()) {
-    ///         compress.copy_input(chunk);
-    ///         output.extend_from_slice(&try!(compress.compress(false, false)));
+    ///     let nilbuf = &mut &mut [][..];
+    ///     loop {
+    ///         // Compressing to a buffer is easiest when the slice is already
+    ///         // available - since we need to grow, extend from compressor
+    ///         // internal buffer.
+    ///         let status = try!(compress.compress(CompressOp::Finish, &mut input, nilbuf));
+    ///         while let Some(buf) = compress.take_output(None) {
+    ///             output.extend_from_slice(buf)
+    ///         }
+    ///         match status {
+    ///             CoStatus::Finished => break,
+    ///             CoStatus::Unfinished => (),
+    ///         }
     ///     }
-    ///     output.extend_from_slice(&try!(compress.compress(true, false)));
     ///     Ok(())
     /// }
     ///
@@ -272,23 +272,55 @@ impl Compress {
     /// assert_roundtrip(b"");
     /// assert_roundtrip(&[6; 1024]);
     /// ```
-    pub fn compress(&mut self, last: bool, force_flush: bool)
-                    -> Result<&[u8], Error> {
-        let mut size = 0;
-        let mut ptr = 0 as *mut _;
+    pub fn compress(&mut self,
+                    op: CompressOp,
+                    input: &mut &[u8],
+                    output: &mut &mut [u8]) -> Result<CoStatus, Error> {
+        let mut available_in = input.len();
+        let mut next_in = input.as_ptr();
+        let mut available_out = output.len();
+        let mut next_out = output.as_mut_ptr();
+        let r = unsafe {
+            brotli_sys::BrotliEncoderCompressStream(self.state,
+                                                    op as brotli_sys::BrotliEncoderOperation,
+                                                    &mut available_in,
+                                                    &mut next_in,
+                                                    &mut available_out,
+                                                    &mut next_out,
+                                                    ptr::null_mut())
+        };
+        *input = &input[input.len() - available_in..];
+        let out_len = output.len();
+        *output = &mut mem::replace(output, &mut [])[out_len - available_out..];
+        if r == 0 { return Err(Error(())) }
+        Ok(if op == CompressOp::Process {
+            CoStatus::Finished
+        } else if available_in != 0 {
+            CoStatus::Unfinished
+        } else if unsafe { brotli_sys::BrotliEncoderHasMoreOutput(self.state) } == 1 {
+            CoStatus::Unfinished
+        } else if op == CompressOp::Finish &&
+                unsafe { brotli_sys::BrotliEncoderIsFinished(self.state) } == 0 {
+            CoStatus::Unfinished
+        } else {
+            CoStatus::Finished
+        })
+    }
+
+    /// Retrieve a slice of the internal compressor buffer up to `size_limit` in length
+    /// (unlimited length if `None`), consuming it. As the internal buffer may not be
+    /// contiguous, consecutive calls may return more output until this function returns
+    /// `None`.
+    pub fn take_output(&mut self, size_limit: Option<usize>) -> Option<&[u8]> {
+        if let Some(0) = size_limit { return None }
+        let mut size_limit = size_limit.unwrap_or(0); // 0 now means unlimited
         unsafe {
-            let (last, flush) = (last as c_int, force_flush as c_int);
-            let r = brotli_sys::BrotliEncoderWriteData(self.state,
-                                                       last,
-                                                       flush,
-                                                       &mut size,
-                                                       &mut ptr);
-            if r == 0 {
-                Err(Error(()))
-            } else if size == 0 {
-                Ok(slice::from_raw_parts_mut(1 as *mut _, size))
+            let ptr = brotli_sys::BrotliEncoderTakeOutput(self.state, &mut size_limit);
+            if size_limit == 0 { // ptr may or may not be null
+                None
             } else {
-                Ok(slice::from_raw_parts_mut(ptr, size))
+                assert!(!ptr.is_null());
+                Some(slice::from_raw_parts(ptr, size_limit))
             }
         }
     }
@@ -336,7 +368,8 @@ impl Drop for Compress {
 /// the output data.
 ///
 /// If successful, the amount of compressed bytes are returned (the size of the
-/// `output` slice), and otherwise an error is returned.
+/// `output` slice), or an error is returned. The output buffer being too small
+/// is considered to be an error.
 pub fn compress_buf(params: &CompressParams,
                     input: &[u8],
                     output: &mut &mut [u8]) -> Result<usize, Error> {
@@ -355,72 +388,6 @@ pub fn compress_buf(params: &CompressParams,
         Err(Error(()))
     } else {
         Ok(size)
-    }
-}
-
-impl CompressParams {
-    /// Creates a new default set of compression parameters.
-    pub fn new() -> CompressParams {
-        CompressParams {
-            mode: brotli_sys::BROTLI_DEFAULT_MODE,
-            quality: brotli_sys::BROTLI_DEFAULT_QUALITY,
-            lgwin: brotli_sys::BROTLI_DEFAULT_WINDOW,
-            lgblock: 0,
-        }
-    }
-
-    /// Set the mode of this compression.
-    pub fn mode(&mut self, mode: CompressMode) -> &mut CompressParams {
-        self.mode = mode as u32;
-        self
-    }
-
-    /// Controls the compression-speed vs compression-density tradeoffs.
-    ///
-    /// The higher the quality, the slower the compression. Currently the range
-    /// for the quality is 0 to 11.
-    pub fn quality(&mut self, quality: u32) -> &mut CompressParams {
-        self.quality = quality;
-        self
-    }
-
-    /// Sets the base 2 logarithm of the sliding window size.
-    ///
-    /// Currently the range is 10 to 24.
-    pub fn lgwin(&mut self, lgwin: u32) -> &mut CompressParams {
-        self.lgwin = lgwin;
-        self
-    }
-
-    /// Sets the base 2 logarithm of the maximum input block size.
-    ///
-    /// Currently the range is 16 to 24, and if set to 0 the value will be set
-    /// based on the quality.
-    pub fn lgblock(&mut self, lgblock: u32) -> &mut CompressParams {
-        self.lgblock = lgblock;
-        self
-    }
-
-    /// Get the current block size
-    #[inline]
-    pub fn get_lgblock_readable(&self) -> usize {
-        1usize << self.lgblock
-    }
-
-    /// Get the native lgblock size
-    #[inline]
-    pub fn get_lgblock(&self) -> u32 {
-        self.lgblock.clone()
-    }
-    /// Get the current window size
-    #[inline]
-    pub fn get_lgwin_readable(&self) -> usize {
-        1usize << self.lgwin
-    }
-    /// Get the native lgwin value
-    #[inline]
-    pub fn get_lgwin(&self) -> u32 {
-        self.lgwin.clone()
     }
 }
 
@@ -469,7 +436,7 @@ mod tests {
     }
 
     #[test]
-    fn decompressor_smoke() {
+    fn decompress_smoke() {
         let mut data = [0; 128];
         let mut data = &mut data[..];
         compress_buf(&CompressParams::new(), b"hello!", &mut data).unwrap();
@@ -479,36 +446,36 @@ mod tests {
         {
             let mut data = &data[..];
             let mut dst = &mut dst[..];
-            assert_eq!(d.decompress(&mut data, &mut dst), Ok(Status::Finished));
+            assert_eq!(d.decompress(&mut data, &mut dst), Ok(DeStatus::Finished));
         }
         assert_eq!(&dst[..6], b"hello!");
-
-        let mut d = Decompress::new();
-        let mut dst = Vec::with_capacity(10);
-        assert_eq!(d.decompress_vec(&mut &data[..], &mut dst),
-                   Ok(Status::Finished));
-        assert_eq!(&dst, b"hello!");
     }
 
     #[test]
     fn compress_smoke() {
-        let mut data = Vec::new();
-        let mut c = Compress::new();
-        c.copy_input(b"hello!");
-        data.extend_from_slice(c.compress(true, false).unwrap());
-
+        let mut data = [0; 128];
         let mut dst = [0; 128];
+
+        {
+            let mut data = &mut data[..];
+            let mut c = Compress::new();
+            let mut input = &mut &b"hello!"[..];
+            assert_eq!(c.compress(CompressOp::Finish, input, &mut data), Ok(CoStatus::Finished));
+            assert!(input.is_empty());
+        }
         decompress_buf(&data, &mut &mut dst[..]).unwrap();
         assert_eq!(&dst[..6], b"hello!");
 
-        data.truncate(0);
-        let mut c = Compress::new();
-        c.copy_input(b"hel");
-        data.extend_from_slice(c.compress(false, true).unwrap());
-        c.copy_input(b"lo!");
-        data.extend_from_slice(c.compress(true, false).unwrap());
-
-        let mut dst = [0; 128];
+        {
+            let mut data = &mut data[..];
+            let mut c = Compress::new();
+            let mut input = &mut &b"hel"[..];
+            assert_eq!(c.compress(CompressOp::Flush, input, &mut data), Ok(CoStatus::Finished));
+            assert!(input.is_empty());
+            let mut input = &mut &b"lo!"[..];
+            assert_eq!(c.compress(CompressOp::Finish, input, &mut data), Ok(CoStatus::Finished));
+            assert!(input.is_empty());
+        }
         decompress_buf(&data, &mut &mut dst[..]).unwrap();
         assert_eq!(&dst[..6], b"hello!");
     }

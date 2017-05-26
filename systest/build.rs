@@ -10,8 +10,6 @@ fn main() {
         cfg.flag("/wd2220"); // allow "no object file was generated"
         cfg.flag("/wd4127"); // allow "conditional expression is constant"
         cfg.flag("/wd4464"); // allow "relative include path contains '..'"
-    } else {
-        cfg.flag("-Wno-deprecated-declarations");
     }
     cfg.header("brotli/decode.h")
        .header("brotli/encode.h");

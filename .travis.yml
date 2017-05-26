@@ -9,6 +9,7 @@ before_script:
 script:
   - export CARGO_TARGET_DIR=`pwd`/target
   - cargo test
+  - cargo run --example all-read-write-roundtrips --release
   - cargo run --manifest-path systest/Cargo.toml
   - cargo doc --no-deps
   - cargo doc --no-deps --manifest-path=brotli-sys/Cargo.toml
