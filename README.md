@@ -7,6 +7,8 @@
 
 Bindings to the official [brotli] implementation in Rust.
 
+Note that you should clone this repository with `git clone --recursive`, to include the referenced C implementation.
+
 [brotli]: https://github.com/google/brotli
 
 ```toml
