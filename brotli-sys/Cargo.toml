@@ -18,6 +18,7 @@ include = [
   "brotli/enc/*",
   "brotli/dec/*",
   "brotli/common/*",
+  "brotli/include/*",
   "Cargo.toml",
   "build.rs"
 ]
