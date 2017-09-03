@@ -111,7 +111,7 @@ impl<R: BufRead> Read for BrotliEncoder<R> {
                 if avail_in == 0 {
                     break
                 }
-                let mut output = &mut buf;
+                let output = &mut buf;
                 let avail_out = output.len();
                 if let Err(err) = self.data.compress(CompressOp::Process, input, output) {
                     self.err = Some(err.clone().into());
