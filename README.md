@@ -12,7 +12,7 @@ Bindings to the official [brotli] implementation in Rust.
 ```toml
 # Cargo.toml
 [dependencies]
-brotli2 = "0.1"
+brotli2 = "0.3"
 ```
 
 # License
