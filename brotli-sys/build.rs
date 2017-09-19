@@ -1,4 +1,4 @@
-extern crate gcc;
+extern crate cc;
 
 use std::env;
 use std::process::Command;
@@ -13,8 +13,9 @@ fn main() {
     let src = env::current_dir().unwrap();
     println!("cargo:include={}", src.join("brotli/include").display());
 
-    gcc::Config::new()
+    cc::Build::new()
         .include("brotli/include")
+        .warnings(false)
         .file("brotli/common/dictionary.c")
         .file("brotli/dec/bit_reader.c")
         .file("brotli/dec/decode.c")
