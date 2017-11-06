@@ -57,6 +57,18 @@ impl<W: Write> BrotliEncoder<W> {
         }
     }
 
+    /// Acquires a reference to the underlying writer.
+    pub fn get_ref(&self) -> &W {
+        self.obj.as_ref().unwrap()
+    }
+
+    /// Acquires a mutable reference to the underlying writer.
+    ///
+    /// Note that mutating the output/input state of the stream may corrupt this
+    /// object, so care must be taken when using this method.
+    pub fn get_mut(&mut self) -> &mut W {
+        self.obj.as_mut().unwrap()
+    }
 
     fn dump(&mut self) -> io::Result<()> {
         loop {
@@ -164,6 +176,19 @@ impl<W: Write> BrotliDecoder<W> {
             cur: 0,
             err: None,
         }
+    }
+
+    /// Acquires a reference to the underlying writer.
+    pub fn get_ref(&self) -> &W {
+        self.obj.as_ref().unwrap()
+    }
+
+    /// Acquires a mutable reference to the underlying writer.
+    ///
+    /// Note that mutating the output/input state of the stream may corrupt this
+    /// object, so care must be taken when using this method.
+    pub fn get_mut(&mut self) -> &mut W {
+        self.obj.as_mut().unwrap()
     }
 
     fn dump(&mut self) -> io::Result<()> {
