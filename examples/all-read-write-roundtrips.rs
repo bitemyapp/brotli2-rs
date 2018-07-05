@@ -85,11 +85,11 @@ fn main() {
     for &data in datas.iter() {
         check(data)
     }
-    let mut rng = rand::XorShiftRng::from_seed([1, 4, 55, 98]);
+    let mut rng = rand::XorShiftRng::from_seed([1; 16]);
     for _ in 0..3 {
         let rnum: usize = rng.gen_range(1, 100*1024*1024);
         let mut buf = vec![0; rnum];
-        rng.fill_bytes(&mut buf);
+        rng.fill(&mut buf[..]);
         check(&buf)
     }
 }
