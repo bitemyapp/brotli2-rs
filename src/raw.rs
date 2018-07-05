@@ -459,7 +459,7 @@ mod tests {
         {
             let mut data = &mut data[..];
             let mut c = Compress::new();
-            let mut input = &mut &b"hello!"[..];
+            let input = &mut &b"hello!"[..];
             assert_eq!(c.compress(CompressOp::Finish, input, &mut data), Ok(CoStatus::Finished));
             assert!(input.is_empty());
         }
@@ -469,10 +469,10 @@ mod tests {
         {
             let mut data = &mut data[..];
             let mut c = Compress::new();
-            let mut input = &mut &b"hel"[..];
+            let input = &mut &b"hel"[..];
             assert_eq!(c.compress(CompressOp::Flush, input, &mut data), Ok(CoStatus::Finished));
             assert!(input.is_empty());
-            let mut input = &mut &b"lo!"[..];
+            let input = &mut &b"lo!"[..];
             assert_eq!(c.compress(CompressOp::Finish, input, &mut data), Ok(CoStatus::Finished));
             assert!(input.is_empty());
         }
