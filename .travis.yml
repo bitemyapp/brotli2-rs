@@ -8,24 +8,21 @@ matrix:
     - rust: beta
     - rust: nightly
 
-    - rust: nightly
-      before_script:
-        - pip install 'travis-cargo<0.2' --user && export PATH=$HOME/.local/bin:$PATH
+    - name: "master doc to gh-pages"
+      rust: nightly
       script:
         - cargo doc --no-deps --all-features
         - cargo doc --no-deps --all-features --manifest-path brotli-sys/Cargo.toml
-      after_success:
-        - travis-cargo --only nightly doc-upload
+        - curl -O https://raw.githubusercontent.com/alexcrichton/rust-travis-deploy/master/travis-deploy.rs
+        - rustc travis-deploy.rs
+        - (cd target/doc && ../../travis-deploy)
+
 
 script:
   - export CARGO_TARGET_DIR=`pwd`/target
   - cargo test
   - cargo run --example all-read-write-roundtrips --release
   - cargo run --manifest-path systest/Cargo.toml
-
-env:
-  global:
-    secure: "nJdOxmn+khWh0Zneim7Aba1ebiEzlIMn2shdWkoUsDHN40O0HZLrT+s0uIzO5KB82TEhvG6gWF7OxrHIDng2xCteeoaYLecqrzDO2atKIQS+UhV2z/SFMWA0O6ZjLz98SyDTK+avZyAuEAhogJ3MfwqaMdJv8MFHfLoGCxix1NQqYurbo9g+Fllu3slFGUFo9j4xeth7um1XU3vluZAQOhjlJXt5/sFVpsVy0Ef30z9Q+YZeaflyOmxlyTtmmTOKvLPbHhK7gKTLHK1ZJhdxrYDE2fjSeOOJlyLVgSSgOZvE03J/AgECCbcktzB0x8e8Xq+MgxmxWechooUql00PbB1HE3WKBghGckXl4IfAMAUbAVsl2s3uA4u3Ej8dZhnnKQMspAfFMFO66tEBtxg0mowO1+AzD1x+D5Fqh5SxxcMM8WqqayjEGhnYaDrNTqbbJPYLjDLWfuXdcrb4RKfydHIPKosCPqG7/+b/2/WrwqFFFWnr+bh3r93iAo5Cz9cE10gx2CMrbQKp9uyJqj4OpOac3dvTuGVN5ewEOp5bKplY4ZXkrGZYOmjUxkgN96erdyVgK9zRngZzxRuObhavVrvkL2F0L6/zDuPso2aDSWliVnuxR0J7Zri5cTCqa1dgU8KeUEi9RJjNcPhaDXnw4f/nnhITnXGHJa5SoOqY/N0="
 
 notifications:
   email:
