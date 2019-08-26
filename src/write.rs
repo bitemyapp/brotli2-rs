@@ -73,7 +73,7 @@ impl<W: Write> BrotliEncoder<W> {
     fn dump(&mut self) -> io::Result<()> {
         loop {
             while !self.buf.is_empty() {
-                let amt = try!(self.obj.as_mut().unwrap().write(&self.buf[self.cur..]));
+                let amt = self.obj.as_mut().unwrap().write(&self.buf[self.cur..])?;
                 self.cur += amt;
                 if self.cur == self.buf.len() {
                     self.buf.clear();
@@ -98,7 +98,7 @@ impl<W: Write> BrotliEncoder<W> {
 
     // Flush or finish stream, also flushing underlying stream
     fn do_flush_or_finish(&mut self, finish: bool) -> io::Result<()> {
-        try!(self.dump());
+        self.dump()?;
         let op = if finish {
             CompressOp::Finish
         } else {
@@ -114,11 +114,11 @@ impl<W: Write> BrotliEncoder<W> {
             };
             let obj = self.obj.as_mut().unwrap();
             while let Some(data) = self.data.take_output(None) {
-                try!(obj.write_all(data))
+                obj.write_all(data)?;
             }
             match status {
                 CoStatus::Finished => {
-                    try!(obj.flush());
+                    obj.flush()?;
                     return Ok(());
                 }
                 CoStatus::Unfinished => (),
@@ -131,7 +131,7 @@ impl<W: Write> BrotliEncoder<W> {
     /// This will flush the underlying data stream and then return the contained
     /// writer if the flush succeeded.
     pub fn finish(mut self) -> io::Result<W> {
-        try!(self.do_flush_or_finish(true));
+        self.do_flush_or_finish(true)?;
         Ok(self.obj.take().unwrap())
     }
 }
@@ -147,7 +147,7 @@ impl<W: Write> Write for BrotliEncoder<W> {
         if let Some(ref err) = self.err {
             return Err(err.clone().into());
         }
-        try!(self.dump());
+        self.dump()?;
         // Zero-length output buf to keep it all inside the compressor buffer
         let avail_in = data.len();
         if let Err(err) = self
@@ -203,7 +203,7 @@ impl<W: Write> BrotliDecoder<W> {
     fn dump(&mut self) -> io::Result<()> {
         loop {
             while !self.buf.is_empty() {
-                let amt = try!(self.obj.as_mut().unwrap().write(&self.buf[self.cur..]));
+                let amt = self.obj.as_mut().unwrap().write(&self.buf[self.cur..])?;
                 self.cur += amt;
                 if self.cur == self.buf.len() {
                     self.buf.clear();
@@ -221,7 +221,7 @@ impl<W: Write> BrotliDecoder<W> {
     }
 
     fn do_finish(&mut self) -> io::Result<()> {
-        try!(self.dump());
+        self.dump()?;
         loop {
             let status = match self.data.decompress(&mut &[][..], &mut &mut [][..]) {
                 Ok(s) => s,
@@ -232,11 +232,11 @@ impl<W: Write> BrotliDecoder<W> {
             };
             let obj = self.obj.as_mut().unwrap();
             while let Some(data) = self.data.take_output(None) {
-                try!(obj.write_all(data))
+                obj.write_all(data)?;
             }
             match status {
                 DeStatus::Finished => {
-                    try!(obj.flush());
+                    obj.flush()?;
                     return Ok(());
                 }
                 // When decoding a truncated file, brotli returns DeStatus::NeedInput.
@@ -253,7 +253,7 @@ impl<W: Write> BrotliDecoder<W> {
 
     /// Unwrap the underlying writer, finishing the compression stream.
     pub fn finish(&mut self) -> io::Result<W> {
-        try!(self.do_finish());
+        self.do_finish()?;
         Ok(self.obj.take().unwrap())
     }
 }
@@ -269,7 +269,7 @@ impl<W: Write> Write for BrotliDecoder<W> {
         if let Some(ref err) = self.err {
             return Err(err.clone().into());
         }
-        try!(self.dump());
+        self.dump()?;
         // Zero-length output buf to keep it all inside the decompressor buffer
         let avail_in = data.len();
         let status = match self.data.decompress(&mut data, &mut &mut [][..]) {
@@ -284,7 +284,7 @@ impl<W: Write> Write for BrotliDecoder<W> {
     }
 
     fn flush(&mut self) -> io::Result<()> {
-        try!(self.dump());
+        self.dump()?;
         self.obj.as_mut().unwrap().flush()
     }
 }

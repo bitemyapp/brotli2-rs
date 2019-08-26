@@ -108,7 +108,7 @@ impl<R: BufRead> Read for BrotliEncoder<R> {
             let amt_in;
             let amt_out;
             {
-                let input = &mut try!(self.obj.fill_buf());
+                let input = &mut self.obj.fill_buf()?;
                 let avail_in = input.len();
                 if avail_in == 0 {
                     break;
@@ -203,7 +203,7 @@ impl<R: BufRead> Read for BrotliDecoder<R> {
             let amt_out;
             let status;
             {
-                let mut input = try!(self.obj.fill_buf());
+                let mut input = self.obj.fill_buf()?;
                 let avail_in = input.len();
                 let avail_out = buf.len();
                 status = match self.data.decompress(&mut input, &mut buf) {

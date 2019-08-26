@@ -254,7 +254,7 @@ impl Compress {
     ///         // Compressing to a buffer is easiest when the slice is already
     ///         // available - since we need to grow, extend from compressor
     ///         // internal buffer.
-    ///         let status = try!(compress.compress(CompressOp::Finish, &mut input, nilbuf));
+    ///         let status = compress.compress(CompressOp::Finish, &mut input, nilbuf)?;
     ///         while let Some(buf) = compress.take_output(None) {
     ///             output.extend_from_slice(buf)
     ///         }
