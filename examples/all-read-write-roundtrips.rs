@@ -6,7 +6,6 @@ use brotli2::read;
 use brotli2::write;
 use brotli2::CompressParams;
 use rand::Rng;
-use rand::SeedableRng;
 use std::io::{Read, Write};
 
 // Used in functions as temporary storage space before producing a vec
