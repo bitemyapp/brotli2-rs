@@ -1,8 +1,5 @@
 # brotli2
 
-[![Build Status](https://travis-ci.com/alexcrichton/brotli2-rs.svg?branch=master)](https://travis-ci.com/alexcrichton/brotli2-rs)
-[![Build status](https://ci.appveyor.com/api/projects/status/j58d3x8p0a8mig0m?svg=true)](https://ci.appveyor.com/project/alexcrichton/brotli-rs)
-
 [Documentation](https://docs.rs/brotli2)
 
 Bindings to the official [brotli] implementation in Rust.
