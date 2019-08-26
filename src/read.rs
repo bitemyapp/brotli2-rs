@@ -31,10 +31,12 @@ impl<R: Read> BrotliEncoder<R> {
     }
 
     /// Configure the compression parameters of this encoder.
-    pub fn from_params( r: R, params: &CompressParams) -> BrotliEncoder<R> {
-        BrotliEncoder{
+    pub fn from_params(r: R, params: &CompressParams) -> BrotliEncoder<R> {
+        BrotliEncoder {
             inner: bufread::BrotliEncoder::from_params(
-                BufReader::with_capacity(params.get_lgwin_readable(),r), params)
+                BufReader::with_capacity(params.get_lgwin_readable(), r),
+                params,
+            ),
         }
     }
 
@@ -99,11 +101,11 @@ impl<R: Read> Read for BrotliDecoder<R> {
 
 #[cfg(test)]
 mod tests {
+    use read::{BrotliDecoder, BrotliEncoder};
     use std::io::prelude::*;
-    use read::{BrotliEncoder, BrotliDecoder};
 
-    use rand::{thread_rng, Rng};
     use rand::distributions::Standard;
+    use rand::{thread_rng, Rng};
 
     #[test]
     fn smoke() {
@@ -145,14 +147,19 @@ mod tests {
         let mut result = Vec::new();
         c.read_to_end(&mut result).unwrap();
 
-        let v = thread_rng().sample_iter(&Standard).take(1024).collect::<Vec<_>>();
+        let v = thread_rng()
+            .sample_iter(&Standard)
+            .take(1024)
+            .collect::<Vec<_>>();
         for _ in 0..200 {
             result.extend(v.iter().map(|x: &u8| *x));
         }
 
         let mut d = BrotliDecoder::new(&result[..]);
         let mut data = Vec::with_capacity(m.len());
-        unsafe { data.set_len(m.len()); }
+        unsafe {
+            data.set_len(m.len());
+        }
         assert!(d.read(&mut data).unwrap() == m.len());
         assert!(data == &m[..]);
     }

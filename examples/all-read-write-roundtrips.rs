@@ -1,29 +1,22 @@
 extern crate brotli2;
 extern crate rand;
 
-use std::io::{Read, Write};
+use brotli2::raw::{compress_buf, decompress_buf};
 use brotli2::read;
 use brotli2::write;
 use brotli2::CompressParams;
-use brotli2::raw::{compress_buf, decompress_buf};
 use rand::Rng;
 use rand::SeedableRng;
+use std::io::{Read, Write};
 
 // Used in functions as temporary storage space before producing a vec
-const BIGBUF_SIZE: usize = 120*1024*1024;
+const BIGBUF_SIZE: usize = 120 * 1024 * 1024;
 static mut BIGBUF: [u8; BIGBUF_SIZE] = [0; BIGBUF_SIZE];
 
 fn main() {
     let v1 = vec![1; 1024];
-    let v2 = vec![44; 10*1024*1024];
-    let datas: &[&[u8]] = &[
-        b"",
-        b"a",
-        b"aaaaa",
-        b";",
-        &v1,
-        &v2,
-    ];
+    let v2 = vec![44; 10 * 1024 * 1024];
+    let datas: &[&[u8]] = &[b"", b"a", b"aaaaa", b";", &v1, &v2];
     let mut params = CompressParams::new();
     params.quality(6);
     let params = &params;
@@ -42,13 +35,17 @@ fn main() {
     }
     fn ioreadencode(data: &[u8], params: &CompressParams) -> Vec<u8> {
         let mut buf = vec![];
-        read::BrotliEncoder::from_params(data, params).read_to_end(&mut buf).unwrap();
+        read::BrotliEncoder::from_params(data, params)
+            .read_to_end(&mut buf)
+            .unwrap();
         assert!(buf.len() > 0);
         buf
     }
-    fn ioreaddecode (data: &[u8]) -> Vec<u8> {
+    fn ioreaddecode(data: &[u8]) -> Vec<u8> {
         let mut buf = vec![];
-        read::BrotliDecoder::new(data).read_to_end(&mut buf).unwrap();
+        read::BrotliDecoder::new(data)
+            .read_to_end(&mut buf)
+            .unwrap();
         buf
     }
     fn iowriteencode(data: &[u8], params: &CompressParams) -> Vec<u8> {
@@ -87,7 +84,7 @@ fn main() {
     }
     let mut rng = rand::thread_rng();
     for _ in 0..3 {
-        let rnum: usize = rng.gen_range(1, 100*1024*1024);
+        let rnum: usize = rng.gen_range(1, 100 * 1024 * 1024);
         let mut buf = vec![0; rnum];
         rng.fill(&mut buf[..]);
         check(&buf)

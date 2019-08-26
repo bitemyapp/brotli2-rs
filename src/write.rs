@@ -1,9 +1,9 @@
 //! Writer-based compression/decompression streams
 
-use std::io::prelude::*;
 use std::io;
+use std::io::prelude::*;
 
-use raw::{self, Decompress, DeStatus, Compress, CompressOp, CoStatus};
+use raw::{self, CoStatus, Compress, CompressOp, DeStatus, Decompress};
 
 use super::CompressParams;
 
@@ -86,11 +86,11 @@ impl<W: Write> BrotliEncoder<W> {
                     Ok(n) => self.buf.extend_from_slice(&data[n..]),
                     Err(e) => {
                         self.buf.extend_from_slice(data);
-                        return Err(e)
+                        return Err(e);
                     }
                 }
             } else {
-                break
+                break;
             }
         }
         Ok(())
@@ -99,14 +99,18 @@ impl<W: Write> BrotliEncoder<W> {
     // Flush or finish stream, also flushing underlying stream
     fn do_flush_or_finish(&mut self, finish: bool) -> io::Result<()> {
         try!(self.dump());
-        let op = if finish { CompressOp::Finish } else { CompressOp::Flush };
+        let op = if finish {
+            CompressOp::Finish
+        } else {
+            CompressOp::Flush
+        };
         loop {
             let status = match self.data.compress(op, &mut &[][..], &mut &mut [][..]) {
                 Ok(s) => s,
                 Err(err) => {
                     self.err = Some(err.clone());
-                    return Err(err.into())
-                },
+                    return Err(err.into());
+                }
             };
             let obj = self.obj.as_mut().unwrap();
             while let Some(data) = self.data.take_output(None) {
@@ -115,8 +119,8 @@ impl<W: Write> BrotliEncoder<W> {
             match status {
                 CoStatus::Finished => {
                     try!(obj.flush());
-                    return Ok(())
-                },
+                    return Ok(());
+                }
                 CoStatus::Unfinished => (),
             }
         }
@@ -134,19 +138,24 @@ impl<W: Write> BrotliEncoder<W> {
 
 impl<W: Write> Write for BrotliEncoder<W> {
     fn write(&mut self, mut data: &[u8]) -> io::Result<usize> {
-        if data.is_empty() { return Ok(0) }
+        if data.is_empty() {
+            return Ok(0);
+        }
         // If the decompressor has failed at some point, this is set.
         // Unfortunately we have no idea what status is in the compressor
         // was in when it failed so we can't do anything except bail again.
         if let Some(ref err) = self.err {
-            return Err(err.clone().into())
+            return Err(err.clone().into());
         }
         try!(self.dump());
         // Zero-length output buf to keep it all inside the compressor buffer
         let avail_in = data.len();
-        if let Err(err) = self.data.compress(CompressOp::Process, &mut data, &mut &mut [][..]) {
+        if let Err(err) = self
+            .data
+            .compress(CompressOp::Process, &mut data, &mut &mut [][..])
+        {
             self.err = Some(err.clone());
-            return Err(err.into())
+            return Err(err.into());
         }
         assert!(avail_in != data.len());
         Ok(avail_in - data.len())
@@ -205,7 +214,7 @@ impl<W: Write> BrotliDecoder<W> {
             if let Some(data) = self.data.take_output(Some(BUF_SIZE)) {
                 self.buf.extend_from_slice(data)
             } else {
-                break
+                break;
             }
         }
         Ok(())
@@ -218,8 +227,8 @@ impl<W: Write> BrotliDecoder<W> {
                 Ok(s) => s,
                 Err(err) => {
                     self.err = Some(err.clone());
-                    return Err(err.into())
-                },
+                    return Err(err.into());
+                }
             };
             let obj = self.obj.as_mut().unwrap();
             while let Some(data) = self.data.take_output(None) {
@@ -228,15 +237,15 @@ impl<W: Write> BrotliDecoder<W> {
             match status {
                 DeStatus::Finished => {
                     try!(obj.flush());
-                    return Ok(())
-                },
+                    return Ok(());
+                }
                 // When decoding a truncated file, brotli returns DeStatus::NeedInput.
                 // Since we're finishing, we cannot provide more data so this is an
                 // error.
                 DeStatus::NeedInput => {
                     let msg = "brotli compressed stream is truncated or otherwise corrupt";
-                    return Err(io::Error::new(io::ErrorKind::UnexpectedEof, msg))
-                },
+                    return Err(io::Error::new(io::ErrorKind::UnexpectedEof, msg));
+                }
                 DeStatus::NeedOutput => (),
             }
         }
@@ -251,12 +260,14 @@ impl<W: Write> BrotliDecoder<W> {
 
 impl<W: Write> Write for BrotliDecoder<W> {
     fn write(&mut self, mut data: &[u8]) -> io::Result<usize> {
-        if data.is_empty() { return Ok(0) }
+        if data.is_empty() {
+            return Ok(0);
+        }
         // If the decompressor has failed at some point, this is set.
         // Unfortunately we have no idea what status is in the compressor
         // was in when it failed so we can't do anything except bail again.
         if let Some(ref err) = self.err {
-            return Err(err.clone().into())
+            return Err(err.clone().into());
         }
         try!(self.dump());
         // Zero-length output buf to keep it all inside the decompressor buffer
@@ -265,8 +276,8 @@ impl<W: Write> Write for BrotliDecoder<W> {
             Ok(s) => s,
             Err(err) => {
                 self.err = Some(err.clone());
-                return Err(err.into())
-            },
+                return Err(err.into());
+            }
         };
         assert!(avail_in != data.len() || status == DeStatus::Finished);
         Ok(avail_in - data.len())
@@ -288,9 +299,9 @@ impl<W: Write> Drop for BrotliDecoder<W> {
 
 #[cfg(test)]
 mod tests {
+    use super::{BrotliDecoder, BrotliEncoder};
     use std::io::prelude::*;
     use std::iter::repeat;
-    use super::{BrotliEncoder, BrotliDecoder};
 
     #[test]
     fn smoke() {

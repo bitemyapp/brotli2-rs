@@ -1,10 +1,10 @@
 //! I/O streams for wrapping `BufRead` types as encoders/decoders
 
-use std::io::prelude::*;
 use std::io;
+use std::io::prelude::*;
 
 use super::CompressParams;
-use raw::{self, Decompress, DeStatus, Compress, CompressOp, CoStatus};
+use raw::{self, CoStatus, Compress, CompressOp, DeStatus, Decompress};
 
 #[derive(Clone, Copy, Eq, PartialEq)]
 enum DoneStatus {
@@ -83,17 +83,19 @@ impl<R: BufRead> BrotliEncoder<R> {
 
 impl<R: BufRead> Read for BrotliEncoder<R> {
     fn read(&mut self, mut buf: &mut [u8]) -> io::Result<usize> {
-        if buf.is_empty() { return Ok(0) }
+        if buf.is_empty() {
+            return Ok(0);
+        }
         // If the compressor has failed at some point, this is set.
         // Unfortunately we have no idea what status is in the compressor
         // was in when it failed so we can't do anything except bail again.
         if let Some(ref err) = self.err {
-            return Err(err.clone().into())
+            return Err(err.clone().into());
         }
 
         if let Some(data) = self.data.take_output(Some(buf.len())) {
             buf[..data.len()].copy_from_slice(data);
-            return Ok(data.len())
+            return Ok(data.len());
         }
 
         match self.done {
@@ -109,13 +111,13 @@ impl<R: BufRead> Read for BrotliEncoder<R> {
                 let input = &mut try!(self.obj.fill_buf());
                 let avail_in = input.len();
                 if avail_in == 0 {
-                    break
+                    break;
                 }
                 let output = &mut buf;
                 let avail_out = output.len();
                 if let Err(err) = self.data.compress(CompressOp::Process, input, output) {
                     self.err = Some(err.clone().into());
-                    return Err(err.into())
+                    return Err(err.into());
                 }
                 amt_in = avail_in - input.len();
                 amt_out = avail_out - output.len();
@@ -124,23 +126,25 @@ impl<R: BufRead> Read for BrotliEncoder<R> {
 
             if amt_out == 0 {
                 assert!(amt_in != 0);
-                continue
+                continue;
             }
-            return Ok(amt_out)
+            return Ok(amt_out);
         }
         self.done = DoneStatus::Finishing;
         return tryfinish(self, buf);
 
-        fn tryfinish<R: BufRead>(enc: &mut BrotliEncoder<R>, mut buf: &mut [u8])
-                -> io::Result<usize> {
+        fn tryfinish<R: BufRead>(
+            enc: &mut BrotliEncoder<R>,
+            mut buf: &mut [u8],
+        ) -> io::Result<usize> {
             let output = &mut buf;
             let avail_out = output.len();
             let iscomplete = match enc.data.compress(CompressOp::Finish, &mut &[][..], output) {
                 Ok(c) => c,
                 Err(err) => {
                     enc.err = err.clone().into();
-                    return Err(err.into())
-                },
+                    return Err(err.into());
+                }
             };
             let written = avail_out - output.len();
             assert!(written != 0 || iscomplete == CoStatus::Finished);
@@ -184,12 +188,14 @@ impl<R: BufRead> BrotliDecoder<R> {
 
 impl<R: BufRead> Read for BrotliDecoder<R> {
     fn read(&mut self, mut buf: &mut [u8]) -> io::Result<usize> {
-        if buf.is_empty() { return Ok(0) }
+        if buf.is_empty() {
+            return Ok(0);
+        }
         // If the decompressor has failed at some point, this is set.
         // Unfortunately we have no idea what status is in the compressor
         // was in when it failed so we can't do anything except bail again.
         if let Some(ref err) = self.err {
-            return Err(err.clone().into())
+            return Err(err.clone().into());
         }
 
         loop {
@@ -204,8 +210,8 @@ impl<R: BufRead> Read for BrotliDecoder<R> {
                     Ok(s) => s,
                     Err(err) => {
                         self.err = Some(err.clone().into());
-                        return Err(err.into())
-                    },
+                        return Err(err.into());
+                    }
                 };
                 amt_in = avail_in - input.len();
                 amt_out = avail_out - buf.len()
@@ -213,17 +219,17 @@ impl<R: BufRead> Read for BrotliDecoder<R> {
             self.obj.consume(amt_in);
 
             if amt_in == 0 && status == DeStatus::NeedInput {
-                return Err(io::Error::new(io::ErrorKind::Other,
-                                          "corrupted brotli stream"))
+                return Err(io::Error::new(
+                    io::ErrorKind::Other,
+                    "corrupted brotli stream",
+                ));
             }
             if amt_out == 0 && status != DeStatus::Finished {
                 assert!(amt_in != 0);
-                continue
+                continue;
             }
 
-            return Ok(amt_out)
+            return Ok(amt_out);
         }
     }
 }
-
-

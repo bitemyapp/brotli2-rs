@@ -29,18 +29,18 @@ extern crate brotli_sys;
 extern crate libc;
 
 #[cfg(test)]
-extern crate rand;
-#[cfg(test)]
 extern crate quickcheck;
+#[cfg(test)]
+extern crate rand;
 
-pub mod raw;
 pub mod bufread;
+pub mod raw;
 pub mod read;
 pub mod write;
 
 /// Possible choices for modes of compression
 #[repr(isize)]
-#[derive(Copy,Clone,Debug,PartialEq,Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum CompressMode {
     /// Default compression mode, the compressor does not know anything in
     /// advance about the properties of the input.
@@ -52,7 +52,7 @@ pub enum CompressMode {
 }
 
 /// Parameters passed to various compression routines.
-#[derive(Clone,Debug)]
+#[derive(Clone, Debug)]
 pub struct CompressParams {
     /// Compression mode.
     mode: u32,
