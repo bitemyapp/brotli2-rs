@@ -1,0 +1,3 @@
+(function() {var implementors = {};
+implementors["brotli2"] = [{"text":"impl StructuralPartialEq for CompressOp","synthetic":false,"types":[]},{"text":"impl StructuralPartialEq for Error","synthetic":false,"types":[]},{"text":"impl StructuralPartialEq for CoStatus","synthetic":false,"types":[]},{"text":"impl StructuralPartialEq for DeStatus","synthetic":false,"types":[]},{"text":"impl StructuralPartialEq for CompressMode","synthetic":false,"types":[]}];
+if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()

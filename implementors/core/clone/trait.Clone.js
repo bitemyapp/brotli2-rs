@@ -1,0 +1,3 @@
+(function() {var implementors = {};
+implementors["brotli2"] = [{"text":"impl Clone for CompressOp","synthetic":false,"types":[]},{"text":"impl Clone for Error","synthetic":false,"types":[]},{"text":"impl Clone for CoStatus","synthetic":false,"types":[]},{"text":"impl Clone for DeStatus","synthetic":false,"types":[]},{"text":"impl Clone for CompressMode","synthetic":false,"types":[]},{"text":"impl Clone for CompressParams","synthetic":false,"types":[]}];
+if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()

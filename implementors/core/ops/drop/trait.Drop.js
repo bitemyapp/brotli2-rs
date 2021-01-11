@@ -1,0 +1,3 @@
+(function() {var implementors = {};
+implementors["brotli2"] = [{"text":"impl Drop for Decompress","synthetic":false,"types":[]},{"text":"impl Drop for Compress","synthetic":false,"types":[]},{"text":"impl&lt;W:&nbsp;Write&gt; Drop for BrotliEncoder&lt;W&gt;","synthetic":false,"types":[]},{"text":"impl&lt;W:&nbsp;Write&gt; Drop for BrotliDecoder&lt;W&gt;","synthetic":false,"types":[]}];
+if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()

@@ -1,0 +1,3 @@
+(function() {var implementors = {};
+implementors["brotli2"] = [{"text":"impl PartialEq&lt;CompressOp&gt; for CompressOp","synthetic":false,"types":[]},{"text":"impl PartialEq&lt;Error&gt; for Error","synthetic":false,"types":[]},{"text":"impl PartialEq&lt;CoStatus&gt; for CoStatus","synthetic":false,"types":[]},{"text":"impl PartialEq&lt;DeStatus&gt; for DeStatus","synthetic":false,"types":[]},{"text":"impl PartialEq&lt;CompressMode&gt; for CompressMode","synthetic":false,"types":[]}];
+if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()
