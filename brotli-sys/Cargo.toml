@@ -1,6 +1,6 @@
 [package]
 name = "brotli-sys"
-version = "0.3.2"
+version = "0.4.0"
 authors = ["Alex Crichton <alex@alexcrichton.com>"]
 build = "build.rs"
 links = "brotli"
@@ -15,10 +15,10 @@ categories = ["external-ffi-bindings"]
 
 include = [
   "src/*",
-  "brotli/enc/*",
-  "brotli/dec/*",
-  "brotli/common/*",
-  "brotli/include/*",
+  "brotli/c/enc/*",
+  "brotli/c/dec/*",
+  "brotli/c/common/*",
+  "brotli/c/include/*",
   "Cargo.toml",
   "build.rs"
 ]

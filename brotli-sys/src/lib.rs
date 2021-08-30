@@ -1,5 +1,5 @@
 #![allow(bad_style)]
-#![doc(html_root_url = "https://docs.rs/brotli-sys/0.2")]
+#![doc(html_root_url = "https://docs.rs/brotli-sys/0.4")]
 
 extern crate libc;
 
@@ -75,9 +75,6 @@ extern "C" {
                                          next_out: *mut *mut u8,
                                          total_out: *mut size_t)
                                          -> BrotliDecoderResult;
-    pub fn BrotliDecoderSetCustomDictionary(state: *mut BrotliDecoderState,
-                                            size: size_t,
-                                            dict: *const u8);
     pub fn BrotliDecoderHasMoreOutput(state: *const BrotliDecoderState) -> c_int;
     pub fn BrotliDecoderTakeOutput(state: *mut BrotliDecoderState,
                                    size: *mut size_t)
@@ -129,7 +126,7 @@ extern "C" {
                                        opaque: *mut c_void)
                                        -> *mut BrotliEncoderState;
     pub fn BrotliEncoderDestroyInstance(state: *mut BrotliEncoderState);
-    // These three are deprecated
+    // These four are deprecated
     //pub fn BrotliEncoderInputBlockSize(state: *mut BrotliEncoderState) -> size_t;
     //pub fn BrotliEncoderCopyInputToRingBuffer(state: *mut BrotliEncoderState,
     //                                          input_size: size_t,
@@ -140,9 +137,9 @@ extern "C" {
     //                              out_size: *mut size_t,
     //                              output: *mut *mut u8)
     //                              -> c_int;
-    pub fn BrotliEncoderSetCustomDictionary(state: *mut BrotliEncoderState,
-                                            size: size_t,
-                                            dict: *const u8);
+    // pub fn BrotliEncoderSetCustomDictionary(state: *mut BrotliEncoderState,
+    //                                         size: size_t,
+    //                                         dict: *const u8);
     pub fn BrotliEncoderMaxCompressedSize(input_size: size_t) -> size_t;
     pub fn BrotliEncoderCompress(quality: c_int,
                                  lgwin: c_int,
