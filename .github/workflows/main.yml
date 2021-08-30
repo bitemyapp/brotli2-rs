@@ -70,6 +70,16 @@ jobs:
     - uses: actions/checkout@master
     - name: Install Rust
       run: rustup update stable && rustup default stable
+    - name: Install brotli
+      run: |
+         echo "$RUNNER_OS"
+         if [ "$RUNNER_OS" == "Linux" ]; then
+              sudo apt install libbrotli1 libbrotli-dev
+         elif [ "$RUNNER_OS" == "macOS" ]; then
+              brew install brotli
+         else
+              echo "$RUNNER_OS not supported"
+         fi
     - run: cargo run --manifest-path systest/Cargo.toml
 
   publish_docs:
