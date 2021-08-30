@@ -34,12 +34,12 @@ jobs:
     - name: Install Rust (rustup)
       run: rustup update ${{ matrix.rust }} --no-self-update && rustup default ${{ matrix.rust }}
       shell: bash
-    - name: Install brotli
-      run: sudo apt install libbrotli1 libbrotli-dev
-      if: ${{ matrix.os }} == "ubuntu-latest"
-    - name: Install brotli
-      run: brew install brotli
-      if: ${{ matrix.os }} == "macos-latest"
+    # - name: Install brotli
+    #   run: sudo apt install libbrotli1 libbrotli-dev
+    #   if: ${{ matrix.os }} == "ubuntu-latest"
+    # - name: Install brotli
+    #   run: brew install brotli
+    #   if: ${{ matrix.os }} == "macos-latest"
     - run: cargo test
     - run: cargo run --example all-read-write-roundtrips --release
     - run: cargo run --manifest-path systest/Cargo.toml
