@@ -36,11 +36,20 @@ jobs:
       shell: bash
     - run: echo "${{matrix.os}}"
     - name: Install brotli
-      run: sudo apt install libbrotli1 libbrotli-dev
-      if: ${{ matrix.os }} == 'ubuntu-latest'
-    - name: Install brotli
-      run: brew install brotli
-      if: ${{ matrix.os }} == 'macos-latest'
+      run: |
+         echo "$RUNNER_OS"
+         if [ "$RUNNER_OS" == "Linux" ]; then
+              sudo apt install libbrotli1 libbrotli-dev
+         elif [ "$RUNNER_OS" == "Mac" ]; then
+              brew install brotli
+         else
+              echo "$RUNNER_OS not supported"
+         fi
+    #   run: sudo apt install libbrotli1 libbrotli-dev
+    #   if: ${{ matrix.os }} == 'ubuntu-latest'
+    # - name: Install brotli
+    #   run: brew install brotli
+    #   if: ${{ matrix.os }} == 'macos-latest'
     - run: cargo test
     - run: cargo run --example all-read-write-roundtrips --release
     - run: cargo run --manifest-path systest/Cargo.toml
