@@ -1,5 +1,5 @@
 #![allow(bad_style)]
-#![doc(html_root_url = "https://docs.rs/brotli-sys/0.2")]
+#![doc(html_root_url = "https://docs.rs/brotli-sys/0.4")]
 
 extern crate libc;
 
