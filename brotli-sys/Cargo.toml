@@ -15,10 +15,10 @@ categories = ["external-ffi-bindings"]
 
 include = [
   "src/*",
-  "brotli/enc/*",
-  "brotli/dec/*",
-  "brotli/common/*",
-  "brotli/include/*",
+  "brotli/c/enc/*",
+  "brotli/c/dec/*",
+  "brotli/c/common/*",
+  "brotli/c/include/*",
   "Cargo.toml",
   "build.rs"
 ]
