@@ -40,6 +40,8 @@ jobs:
     # - name: Install brotli
     #   run: brew install brotli
     #   if: ${{ matrix.os }} == "macos-latest"
+    - run: echo "this is macos"
+      if: matrix.os == "macos-latest"
     - run: cargo test
     - run: cargo run --example all-read-write-roundtrips --release
     - run: cargo run --manifest-path systest/Cargo.toml
