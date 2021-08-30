@@ -7,7 +7,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        build: [stable, beta, nightly, macos, win32, win64]
+        build: [stable, beta, nightly, macos]
         include:
           - build: stable
             os: ubuntu-latest
@@ -21,12 +21,6 @@ jobs:
           - build: macos
             os: macos-latest
             rust: stable
-          # - build: win32
-          #   os: windows-latest
-          #   rust: stable-i686-msvc
-          # - build: win64
-          #   os: windows-latest
-          #   rust: stable-x86_64-msvc
     steps:
     - uses: actions/checkout@master
       with:
@@ -44,12 +38,8 @@ jobs:
               brew install brotli
          else
               echo "$RUNNER_OS not supported"
+              exit 1
          fi
-    #   run: sudo apt install libbrotli1 libbrotli-dev
-    #   if: ${{ matrix.os }} == 'ubuntu-latest'
-    # - name: Install brotli
-    #   run: brew install brotli
-    #   if: ${{ matrix.os }} == 'macos-latest'
     - run: cargo test
     - run: cargo run --example all-read-write-roundtrips --release
     - run: cargo run --manifest-path systest/Cargo.toml
