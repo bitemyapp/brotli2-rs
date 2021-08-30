@@ -21,12 +21,12 @@ jobs:
           - build: macos
             os: macos-latest
             rust: stable
-          - build: win32
-            os: windows-latest
-            rust: stable-i686-msvc
-          - build: win64
-            os: windows-latest
-            rust: stable-x86_64-msvc
+          # - build: win32
+          #   os: windows-latest
+          #   rust: stable-i686-msvc
+          # - build: win64
+          #   os: windows-latest
+          #   rust: stable-x86_64-msvc
     steps:
     - uses: actions/checkout@master
       with:
