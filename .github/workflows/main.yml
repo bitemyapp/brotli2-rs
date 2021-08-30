@@ -40,7 +40,7 @@ jobs:
          echo "$RUNNER_OS"
          if [ "$RUNNER_OS" == "Linux" ]; then
               sudo apt install libbrotli1 libbrotli-dev
-         elif [ "$RUNNER_OS" == "Mac" ]; then
+         elif [ "$RUNNER_OS" == "macOS" ]; then
               brew install brotli
          else
               echo "$RUNNER_OS not supported"
