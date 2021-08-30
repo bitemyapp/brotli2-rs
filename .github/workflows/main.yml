@@ -30,7 +30,8 @@ jobs:
     steps:
     - uses: actions/checkout@master
     - name: Checkout submodules
-      uses: textbook/git-checkout-submodule-action@master
+      uses: textbook/git-checkout-submodule-action@maste
+      if: ${{ matrix.os }} == "ubuntu-latest"
     - name: Install Rust (rustup)
       run: rustup update ${{ matrix.rust }} --no-self-update && rustup default ${{ matrix.rust }}
       shell: bash
